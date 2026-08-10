@@ -4,23 +4,25 @@ declare(strict_types=1);
 
 namespace OCA\DevNull\Controller;
 
-use OCA\DevNull\Db\Mapper\OperationMapper;
+use OCA\DevNull\AppInfo\Application;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
+use OCP\IDBConnection;
 use OCP\IRequest;
 
 /**
  * API: Operation history (logs).
+ *
+ * Uses raw DB query to avoid DI issues with Mapper when table doesn't exist.
  */
 class OperationController extends OCSController
 {
     public function __construct(
-        string $appName,
         IRequest $request,
-        private OperationMapper $operationMapper,
+        private IDBConnection $db,
         private ?string $userId,
     ) {
-        parent::__construct($appName, $request);
+        parent::__construct(Application::APP_ID, $request);
     }
 
     /**
@@ -32,22 +34,33 @@ class OperationController extends OCSController
     public function list(int $limit = 20): DataResponse
     {
         try {
-            $operations = $this->operationMapper->findByUser($this->userId, $limit);
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from('devnull_operations')
+                ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
+                ->orderBy('started_at', 'DESC')
+                ->setMaxResults($limit);
 
-            $result = array_map(fn($op) => [
-                'id' => $op->getId(),
-                'disk_id' => $op->getDiskId(),
-                'type' => $op->getType(),
-                'status' => $op->getStatus(),
-                'started_at' => $op->getStartedAt(),
-                'finished_at' => $op->getFinishedAt(),
-                'error' => $op->getErrorMsg(),
-            ], $operations);
+            $result = $qb->executeQuery();
+            $operations = [];
 
-            return new DataResponse(['operations' => $result]);
-        } catch (\Exception $e) {
-            // Table may not exist yet (migration not run)
-            return new DataResponse(['operations' => [], 'warning' => 'Banco de dados ainda não inicializado']);
+            while ($row = $result->fetch()) {
+                $operations[] = [
+                    'id' => (int) $row['id'],
+                    'disk_id' => (int) $row['disk_id'],
+                    'type' => $row['type'],
+                    'status' => $row['status'],
+                    'started_at' => $row['started_at'],
+                    'finished_at' => $row['finished_at'],
+                    'error' => $row['error_msg'],
+                ];
+            }
+            $result->closeCursor();
+
+            return new DataResponse(['operations' => $operations]);
+        } catch (\Exception) {
+            // Table doesn't exist yet — return empty gracefully
+            return new DataResponse(['operations' => []]);
         }
     }
 }

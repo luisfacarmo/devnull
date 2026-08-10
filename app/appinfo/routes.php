@@ -25,16 +25,12 @@ return [
         // Ingest capability
         ['name' => 'Ingest#start', 'url' => '/api/v1/ingest', 'verb' => 'POST'],
         ['name' => 'Ingest#getSteps', 'url' => '/api/v1/ingest/steps', 'verb' => 'GET'],
-        ['name' => 'Ingest#getProgress', 'url' => '/api/v1/ingest/{operationId}', 'verb' => 'GET'],
 
         // StatusReporting capability
         ['name' => 'Status#index', 'url' => '/api/v1/status', 'verb' => 'GET'],
 
         // Persistence (logs)
         ['name' => 'Operation#list', 'url' => '/api/v1/logs', 'verb' => 'GET'],
-
-        // Daemon bridge (health)
-        ['name' => 'Daemon#health', 'url' => '/api/v1/daemon/health', 'verb' => 'GET'],
     ],
     'routes' => [
         // Frontend page
