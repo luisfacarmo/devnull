@@ -30,7 +30,7 @@ class PageController extends Controller
      */
     public function index(): TemplateResponse
     {
-        Util::addScript(Application::APP_ID, 'devnull-main');
+        Util::addScript(Application::APP_ID, 'devnull-main', ['cache-buster' => true]);
         Util::addStyle(Application::APP_ID, 'style');
 
         return new TemplateResponse(Application::APP_ID, 'main');

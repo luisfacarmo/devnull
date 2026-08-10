@@ -24,6 +24,7 @@ return [
 
         // Ingest capability
         ['name' => 'Ingest#start', 'url' => '/api/v1/ingest', 'verb' => 'POST'],
+        ['name' => 'Ingest#getSteps', 'url' => '/api/v1/ingest/steps', 'verb' => 'GET'],
         ['name' => 'Ingest#getProgress', 'url' => '/api/v1/ingest/{operationId}', 'verb' => 'GET'],
 
         // StatusReporting capability

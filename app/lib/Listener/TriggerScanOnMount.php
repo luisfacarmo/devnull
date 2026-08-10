@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace OCA\DevNull\Listener;
 
 use OCA\DevNull\Event\DiskMountedEvent;
+use OCA\DevNull\Ingest\IngestPipeline;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use Psr\Log\LoggerInterface;
 
 /**
- * Optionally triggers a file scan when a disk is mounted.
- * Registered for DiskMountedEvent in Application.php.
- *
- * Currently logs only — full scan pipeline comes in Sprint 4.
+ * Triggers the ingest pipeline when a disk is mounted.
+ * Runs scan → dedup → classify automatically.
  */
 class TriggerScanOnMount implements IEventListener
 {
     public function __construct(
+        private IngestPipeline $pipeline,
         private LoggerInterface $logger,
     ) {
     }
@@ -28,12 +28,19 @@ class TriggerScanOnMount implements IEventListener
             return;
         }
 
-        $this->logger->info('DevNull: disco montado, scan disponível', [
+        $this->logger->info('DevNull: Auto-ingest disparado após mount', [
             'device' => $event->device,
             'mountpoint' => $event->mountpoint,
             'user' => $event->userId,
         ]);
 
-        // TODO Sprint 4: Trigger IngestPipeline with configured steps
+        // Run full pipeline: scan → dedup → classify
+        $steps = ['scan', 'dedup', 'classify'];
+        $result = $this->pipeline->execute($event->mountpoint, $steps, $event->userId);
+
+        $this->logger->info('DevNull: Auto-ingest concluído', [
+            'success' => $result['success'],
+            'device' => $event->device,
+        ]);
     }
 }

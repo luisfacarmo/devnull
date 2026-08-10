@@ -1,7 +1,7 @@
 <template>
 	<div id="devnull-app">
 		<div class="devnull-header">
-			<h2>DevNull</h2>
+			<h2>/dev/null</h2>
 			<NcButton type="secondary" @click="refresh">
 				<template #icon>
 					<ReloadIcon :size="20" />
@@ -14,9 +14,9 @@
 			:disks="disks"
 			:loading="loading"
 			:error="error"
-			@refresh="fetchDisks"
-			@mount="handleMount"
-			@unmount="handleUnmount" />
+			@refresh="fetchDisks" />
+
+		<OperationLog ref="operationLog" />
 	</div>
 </template>
 
@@ -24,6 +24,7 @@
 import { NcButton } from '@nextcloud/vue'
 import ReloadIcon from 'vue-material-design-icons/Refresh.vue'
 import DiskList from './components/DiskList.vue'
+import OperationLog from './components/OperationLog.vue'
 import { generateOcsUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
 
@@ -33,6 +34,7 @@ export default {
 		NcButton,
 		ReloadIcon,
 		DiskList,
+		OperationLog,
 	},
 	data() {
 		return {
@@ -62,6 +64,7 @@ export default {
 		},
 		refresh() {
 			this.fetchDisks()
+			this.$refs.operationLog?.fetchLogs()
 		},
 	},
 }
