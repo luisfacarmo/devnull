@@ -35,6 +35,21 @@ class DiskController extends OCSController
 
         return new DataResponse([
             'disks' => array_map(fn($d) => $d->toArray(), $disks),
+            'capabilities' => [
+                'mount_available' => $this->isMountAvailable(),
+            ],
         ]);
+    }
+
+    private function isMountAvailable(): bool
+    {
+        // Check if any mount strategy works
+        try {
+            $factory = \OCP\Server::get(\OCA\DevNull\Mount\MountStrategyFactory::class);
+            $factory->create();
+            return true;
+        } catch (\Exception) {
+            return false;
+        }
     }
 }
