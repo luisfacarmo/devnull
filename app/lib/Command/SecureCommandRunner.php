@@ -24,6 +24,7 @@ class SecureCommandRunner
         'udisksctl',
         'smartctl',
         'sudo',
+        'php',
     ];
 
     public function __construct(
