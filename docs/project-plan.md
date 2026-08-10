@@ -745,3 +745,62 @@ User → Frontend → MountController → DaemonBridgeDetector
 *Última atualização: Agosto 2026*
 *Versão: 2.0.0*
 *Status: Aprovado — decisões consolidadas, pronto para implementação*
+
+
+---
+
+## 15. Publicação na Nextcloud App Store
+
+### Requisitos da App Store (checklist)
+
+| # | Requisito | Status | Onde |
+|---|-----------|--------|------|
+| P1 | Licença AGPL-3.0-or-later | ✅ | info.xml, LICENSE |
+| P2 | Não usar "Nextcloud" no nome | ✅ | "DevNull" |
+| P3 | Usar apenas API pública do Nextcloud | ✅ | App Framework + OCS |
+| P4 | Compatível com latest NC release +1 | ✅ | info.xml: 28-34 |
+| P5 | App não quebra o Nextcloud | ⏳ Sprint 3 | Testes e2e |
+| P6 | Seguir guidelines de design/CSS | ⏳ Sprint 1 | @nextcloud/vue |
+| P7 | Cleanup correto no uninstall (migrations down) | ⏳ Sprint 2 | Db/Migration |
+| P8 | Comunicar propósito e features claramente | ✅ | info.xml description |
+| P9 | Respeitar privacidade (zero data leak) | ✅ | Nenhum dado sai do servidor |
+| P10 | Contato do autor (bug tracker) | ✅ | info.xml bugs URL |
+| P11 | Não usar memória excessiva | ⏳ Sprint 3 | Background jobs para ops pesadas |
+| P12 | Não limitar capacidade do user de reverter | ⏳ Sprint 2 | Ejetar remove tudo cleanly |
+
+### Processo de Publicação
+
+```
+1. Registrar conta → apps.nextcloud.com/account/register (GitHub OAuth)
+2. Gerar certificado:
+   openssl req -nodes -newkey rsa:4096 -keyout devnull.key -out devnull.csr -subj "/CN=devnull"
+3. Enviar CSR → apps.nextcloud.com (receber .crt assinado)
+4. Empacotar release:
+   tar -czf devnull-X.Y.Z.tar.gz --transform 's,^,devnull/,' -C app/ .
+5. Assinar:
+   openssl dgst -sha512 -sign devnull.key devnull-X.Y.Z.tar.gz | openssl base64 > signature
+6. Publicar via API ou interface web
+```
+
+### Automação de Release (GitHub Actions)
+
+Usar [`nextcloud-appstore-push-action`](https://github.com/R0Wi/nextcloud-appstore-push-action):
+- Trigger: push de tag `v*`
+- Steps: build frontend → empacotar → assinar → publicar na store
+- Secrets necessários: `APP_PRIVATE_KEY`, `APPSTORE_TOKEN`
+
+### Timeline de Publicação
+
+| Versão | Alvo | Ação |
+|--------|------|------|
+| v0.1.0 | Sprint 3 | Uso pessoal (git clone no servidor) |
+| v0.2.0 | Sprint 4 | Beta testers (compartilhar repo) |
+| v0.3.0 | Sprint 5 | Repo público + submeter à App Store |
+| v0.4.0 | Sprint 6 | Candidatura para Nextcloud org (github.com/nextcloud) |
+
+### Regras para mover repo para github.com/nextcloud (futuro)
+
+Se quisermos que o DevNull vire app "oficial" da organização Nextcloud:
+- Trabalhar conforme o Code of Conduct do Nextcloud
+- Aceitar que se ficar inativo, admins podem transferir maintainership
+- Benefícios: traduções automáticas, bots CI, maior visibilidade
