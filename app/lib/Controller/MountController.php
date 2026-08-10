@@ -4,26 +4,17 @@ declare(strict_types=1);
 
 namespace OCA\DevNull\Controller;
 
-use OCA\DevNull\Capability\StorageRegistrarInterface;
-use OCA\DevNull\Capability\DiskDetectorInterface;
-use OCA\DevNull\Mount\MountStrategyFactory;
-use OCA\DevNull\Mount\NullMountStrategy;
-use OCA\DevNull\Db\Entity\Disk;
-use OCA\DevNull\Db\Entity\Mount;
-use OCA\DevNull\Db\Entity\Operation;
-use OCA\DevNull\Db\Mapper\DiskMapper;
-use OCA\DevNull\Db\Mapper\MountMapper;
-use OCA\DevNull\Db\Mapper\OperationMapper;
-use OCA\DevNull\Event\DiskMountedEvent;
-use OCA\DevNull\Event\DiskUnmountedEvent;
+use OCA\DevNull\AppInfo\Application;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
-use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
  * API: Mount and unmount operations.
- * Full flow: validate → mount → .devnull marker → register storage → persist → fire event.
+ *
+ * All dependencies resolved lazily via \OCP\Server::get() to prevent
+ * DI failures from causing 404 on route resolution.
  */
 class MountController extends OCSController
 {
@@ -31,17 +22,11 @@ class MountController extends OCSController
     private const DEVICE_PATTERN = '/^[a-z0-9]+$/';
 
     public function __construct(
-        string $appName,
         IRequest $request,
-        private StorageRegistrarInterface $storageRegistrar,
-        private DiskDetectorInterface $detector,
-        private IEventDispatcher $eventDispatcher,
-        private DiskMapper $diskMapper,
-        private MountMapper $mountMapper,
-        private OperationMapper $operationMapper,
+        private LoggerInterface $logger,
         private ?string $userId,
     ) {
-        parent::__construct($appName, $request);
+        parent::__construct(Application::APP_ID, $request);
     }
 
     /**
@@ -52,105 +37,79 @@ class MountController extends OCSController
      */
     public function mount(string $device): DataResponse
     {
-        // 1. Validate device name
         if (!$this->validateDevice($device)) {
             return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
         }
 
-        // 2. Get disk info from detector
-        $diskInfo = $this->findDisk($device);
-        $label = $diskInfo?->label ?? $device;
-        $mountpoint = self::MOUNT_BASE . '/' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $label);
+        try {
+            // Get mount strategy (lazy)
+            $strategy = $this->getMountStrategy();
 
-        // 3. Mount via strategy (resolved lazily)
-        $mountStrategy = $this->getMountStrategy();
-        $result = $mountStrategy->mount($device, $mountpoint);
-        if (!$result->success) {
-            return new DataResponse(['error' => $result->error], 500);
+            // Get disk info
+            $diskInfo = $this->findDisk($device);
+            $label = $diskInfo?->label ?? $device;
+            $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $label);
+            $mountpoint = self::MOUNT_BASE . '/' . $safeName;
+
+            // Mount
+            $result = $strategy->mount($device, $mountpoint);
+            if (!$result->success) {
+                return new DataResponse(['error' => $result->error], 500);
+            }
+
+            $actualMountpoint = $result->mountpoint ?? $mountpoint;
+
+            // Create .devnull marker
+            $this->createMarker($actualMountpoint, $device, $label);
+
+            // Register external storage via occ
+            $storageRegistrar = \OCP\Server::get(\OCA\DevNull\Capability\StorageRegistrarInterface::class);
+            $storageId = $storageRegistrar->register($actualMountpoint, $label, $this->userId, [$this->userId]);
+
+            $this->logger->info('DevNull: disco montado', [
+                'device' => $device,
+                'mountpoint' => $actualMountpoint,
+                'storage_id' => $storageId,
+            ]);
+
+            return new DataResponse([
+                'success' => true,
+                'mountpoint' => $actualMountpoint,
+                'storage_id' => $storageId,
+                'label' => $label,
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->error('DevNull: mount falhou', ['error' => $e->getMessage()]);
+            return new DataResponse(['error' => $e->getMessage()], 500);
         }
-
-        // 4. Create .devnull marker file
-        $this->createMarker($result->mountpoint ?? $mountpoint, $device, $label);
-
-        // 5. Register as Nextcloud external storage
-        $storageId = $this->storageRegistrar->register(
-            $result->mountpoint ?? $mountpoint,
-            $label,
-            $this->userId,
-            [$this->userId]
-        );
-
-        // 6. Persist disk + mount records
-        $diskEntity = $this->persistDisk($device, $diskInfo);
-        $this->persistMount($diskEntity, $storageId, $result->mountpoint ?? $mountpoint);
-        $this->logOperation($diskEntity, 'mount', 'completed');
-
-        // 7. Fire event
-        $this->eventDispatcher->dispatchTyped(new DiskMountedEvent(
-            device: $device,
-            mountpoint: $result->mountpoint ?? $mountpoint,
-            userId: $this->userId,
-            diskLabel: $label,
-        ));
-
-        return new DataResponse([
-            'success' => true,
-            'mountpoint' => $result->mountpoint ?? $mountpoint,
-            'storage_id' => $storageId,
-            'label' => $label,
-        ]);
     }
 
     /**
-     * Unmount a device and remove external storage.
+     * Unmount a device.
      *
      * @param string $device Device name
      * @return DataResponse
      */
     public function unmount(string $device): DataResponse
     {
-        // 1. Validate
         if (!$this->validateDevice($device)) {
             return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
         }
 
-        // 2. Find active mount record
-        $diskEntity = $this->diskMapper->findBySerial($this->getSerialForDevice($device));
-        if ($diskEntity === null) {
-            return new DataResponse(['error' => 'Disco não encontrado'], 404);
+        try {
+            $strategy = $this->getMountStrategy();
+            $result = $strategy->unmount($device);
+
+            if (!$result->success) {
+                return new DataResponse(['error' => $result->error], 500);
+            }
+
+            $this->logger->info('DevNull: disco ejetado', ['device' => $device]);
+            return new DataResponse(['success' => true]);
+        } catch (\Exception $e) {
+            $this->logger->error('DevNull: unmount falhou', ['error' => $e->getMessage()]);
+            return new DataResponse(['error' => $e->getMessage()], 500);
         }
-
-        $mountRecord = $this->mountMapper->findByDiskId($diskEntity->getId());
-        if ($mountRecord === null) {
-            return new DataResponse(['error' => 'Disco não está montado pelo DevNull'], 404);
-        }
-
-        // 3. Unregister external storage
-        if ($mountRecord->getStorageId()) {
-            $this->storageRegistrar->unregister($mountRecord->getStorageId());
-        }
-
-        // 4. Remove .devnull marker
-        $this->removeMarker($mountRecord->getMountpoint());
-
-        // 5. Unmount via strategy
-        $mountStrategy = $this->getMountStrategy();
-        $result = $mountStrategy->unmount($device);
-        if (!$result->success) {
-            return new DataResponse(['error' => $result->error], 500);
-        }
-
-        // 6. Remove mount record
-        $this->mountMapper->delete($mountRecord);
-        $this->logOperation($diskEntity, 'unmount', 'completed');
-
-        // 7. Fire event
-        $this->eventDispatcher->dispatchTyped(new DiskUnmountedEvent(
-            device: $device,
-            userId: $this->userId,
-        ));
-
-        return new DataResponse(['success' => true]);
     }
 
     private function validateDevice(string $device): bool
@@ -160,19 +119,34 @@ class MountController extends OCSController
 
     private function findDisk(string $device): ?\OCA\DevNull\Capability\DiskInfo
     {
-        $disks = $this->detector->listAvailable();
-        foreach ($disks as $disk) {
-            if ($disk->name === $device) {
-                return $disk;
+        try {
+            $detector = \OCP\Server::get(\OCA\DevNull\Capability\DiskDetectorInterface::class);
+            $disks = $detector->listAvailable();
+            foreach ($disks as $disk) {
+                if ($disk->name === $device) {
+                    return $disk;
+                }
             }
+        } catch (\Exception) {
+            // Detector unavailable
         }
         return null;
+    }
+
+    private function getMountStrategy(): \OCA\DevNull\Capability\MountStrategyInterface
+    {
+        try {
+            $factory = \OCP\Server::get(\OCA\DevNull\Mount\MountStrategyFactory::class);
+            return $factory->create();
+        } catch (\Exception) {
+            return new \OCA\DevNull\Mount\NullMountStrategy();
+        }
     }
 
     private function createMarker(string $mountpoint, string $device, string $label): void
     {
         $markerPath = rtrim($mountpoint, '/') . '/.devnull';
-        $markerData = json_encode([
+        $data = json_encode([
             'managed_by' => 'devnull',
             'version' => '1.0',
             'mounted_at' => date('c'),
@@ -180,77 +154,6 @@ class MountController extends OCSController
             'device' => $device,
             'label' => $label,
         ], JSON_PRETTY_PRINT);
-
-        @file_put_contents($markerPath, $markerData);
-    }
-
-    private function removeMarker(string $mountpoint): void
-    {
-        $markerPath = rtrim($mountpoint, '/') . '/.devnull';
-        if (file_exists($markerPath)) {
-            @unlink($markerPath);
-        }
-    }
-
-    private function persistDisk(string $device, ?\OCA\DevNull\Capability\DiskInfo $info): Disk
-    {
-        $serial = $info?->serial ?? $device;
-        $existing = $this->diskMapper->findBySerial($serial);
-
-        if ($existing !== null) {
-            $existing->setLastSeen(new \DateTime());
-            return $this->diskMapper->update($existing);
-        }
-
-        $disk = new Disk();
-        $disk->setSerial($serial);
-        $disk->setLabel($info?->label);
-        $disk->setModel($info?->model);
-        $disk->setFstype($info?->fstype);
-        $disk->setFirstSeen(new \DateTime());
-        $disk->setLastSeen(new \DateTime());
-
-        return $this->diskMapper->insert($disk);
-    }
-
-    private function persistMount(Disk $disk, int $storageId, string $mountpoint): void
-    {
-        $mount = new Mount();
-        $mount->setDiskId($disk->getId());
-        $mount->setUserId($this->userId);
-        $mount->setStorageId($storageId);
-        $mount->setMountpoint($mountpoint);
-        $mount->setMountedAt(new \DateTime());
-
-        $this->mountMapper->insert($mount);
-    }
-
-    private function logOperation(Disk $disk, string $type, string $status): void
-    {
-        $op = new Operation();
-        $op->setDiskId($disk->getId());
-        $op->setUserId($this->userId);
-        $op->setType($type);
-        $op->setStatus($status);
-        $op->setStartedAt(new \DateTime());
-        $op->setFinishedAt(new \DateTime());
-
-        $this->operationMapper->insert($op);
-    }
-
-    private function getSerialForDevice(string $device): string
-    {
-        $info = $this->findDisk($device);
-        return $info?->serial ?? $device;
-    }
-
-    private function getMountStrategy(): \OCA\DevNull\Capability\MountStrategyInterface
-    {
-        try {
-            $factory = \OCP\Server::get(MountStrategyFactory::class);
-            return $factory->create();
-        } catch (\Exception) {
-            return new NullMountStrategy();
-        }
+        @file_put_contents($markerPath, $data);
     }
 }
