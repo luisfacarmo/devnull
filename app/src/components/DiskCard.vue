@@ -46,16 +46,29 @@
 				{{ t('devnull', 'Montar') }}
 			</NcButton>
 
-			<NcButton v-else
-				type="error"
-				:disabled="loading"
-				@click="handleEject">
-				<template #icon>
-					<NcLoadingIcon v-if="loading" :size="20" />
-					<EjectIcon v-else :size="20" />
-				</template>
-				{{ t('devnull', 'Ejetar') }}
-			</NcButton>
+			<template v-else>
+				<NcButton
+					type="secondary"
+					:disabled="loading"
+					@click="handleIngest">
+					<template #icon>
+						<NcLoadingIcon v-if="ingesting" :size="20" />
+						<CogIcon v-else :size="20" />
+					</template>
+					{{ t('devnull', 'Processar') }}
+				</NcButton>
+
+				<NcButton
+					type="error"
+					:disabled="loading"
+					@click="handleEject">
+					<template #icon>
+						<NcLoadingIcon v-if="loading && !ingesting" :size="20" />
+						<EjectIcon v-else :size="20" />
+					</template>
+					{{ t('devnull', 'Ejetar') }}
+				</NcButton>
+			</template>
 		</div>
 	</div>
 </template>
@@ -67,6 +80,7 @@ import axios from '@nextcloud/axios'
 import HarddiskIcon from 'vue-material-design-icons/Harddisk.vue'
 import PlayIcon from 'vue-material-design-icons/Play.vue'
 import EjectIcon from 'vue-material-design-icons/Eject.vue'
+import CogIcon from 'vue-material-design-icons/Cog.vue'
 
 export default {
 	name: 'DiskCard',
@@ -76,6 +90,7 @@ export default {
 		HarddiskIcon,
 		PlayIcon,
 		EjectIcon,
+		CogIcon,
 	},
 	props: {
 		disk: {
@@ -86,6 +101,7 @@ export default {
 	data() {
 		return {
 			loading: false,
+			ingesting: false,
 			error: null,
 		}
 	},
@@ -117,6 +133,27 @@ export default {
 					?? t('devnull', 'Falha ao ejetar')
 				console.error('DevNull: unmount failed', e)
 			} finally {
+				this.loading = false
+			}
+		},
+		async handleIngest() {
+			this.ingesting = true
+			this.loading = true
+			this.error = null
+			try {
+				const url = generateOcsUrl('/apps/devnull/api/v1/ingest')
+				const response = await axios.post(url, { device: this.disk.name })
+				const data = response.data.ocs?.data
+				if (data && !data.success) {
+					this.error = t('devnull', 'Pipeline concluiu com erros')
+				}
+				this.$emit('refresh')
+			} catch (e) {
+				this.error = e.response?.data?.ocs?.data?.error
+					?? t('devnull', 'Falha no processamento')
+				console.error('DevNull: ingest failed', e)
+			} finally {
+				this.ingesting = false
 				this.loading = false
 			}
 		},
