@@ -1,0 +1,27 @@
+{
+    "name": "luiscarmo/devnull",
+    "description": "Nextcloud app for external disk auto-ingest",
+    "license": "AGPL-3.0-or-later",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "OCA\\DevNull\\": "lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "OCA\\DevNull\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0",
+        "nextcloud/ocp": "^28"
+    },
+    "scripts": {
+        "test": "phpunit --configuration tests/phpunit.xml",
+        "lint": "php -l lib/"
+    }
+}
