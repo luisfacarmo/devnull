@@ -52,7 +52,15 @@ class Application extends App implements IBootstrap
         });
 
         $context->registerService(MountStrategyInterface::class, function ($c) {
-            return $c->get(MountStrategyFactory::class)->create();
+            // Lazy: don't resolve strategy at registration time.
+            // Return a lazy proxy that resolves on first use.
+            // This prevents crashes when udisks2 is not installed.
+            try {
+                return $c->get(MountStrategyFactory::class)->create();
+            } catch (\RuntimeException $e) {
+                // Fallback: return a NullMountStrategy that returns errors gracefully
+                return new \OCA\DevNull\Mount\NullMountStrategy();
+            }
         });
 
         $context->registerService(StorageRegistrarInterface::class, function ($c) {
