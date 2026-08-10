@@ -1,0 +1,25 @@
+[Unit]
+Description=DevNull Daemon — Hardware detection and mount engine
+After=network.target
+Documentation=https://github.com/luiscarmo/devnull
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/devnull-daemon
+ExecStart=/opt/devnull-daemon/.venv/bin/devnull-daemon
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+EnvironmentFile=/opt/devnull-daemon/.env
+
+# Security hardening
+NoNewPrivileges=false
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/media/devnull
+
+[Install]
+WantedBy=multi-user.target

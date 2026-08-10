@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>devnull</id>
+    <name>DevNull</name>
+    <summary>/dev/null — Where your data goes to live.</summary>
+    <description><![CDATA[
+DevNull detects external drives connected to your server and lets you mount,
+scan, deduplicate and classify their contents — all from the Nextcloud interface.
+
+**Features:**
+- Auto-detect USB/external drives connected to your server
+- One-click mount and register as Nextcloud external storage
+- Integrated ingest pipeline: scan, deduplicate, classify (AI)
+- Multi-tenant: admin mounts, users see what's shared with them
+- Optional daemon for real-time hotplug detection and background workers
+- Strategy-based architecture: works with udisks2 or sudo mount
+
+No terminal required. Plug in a disk, click mount, let your server do the rest.
+    ]]></description>
+    <version>0.1.0-dev</version>
+    <licence>agpl</licence>
+    <author mail="luis@example.com" homepage="https://github.com/luiscarmo">Luis Carmo</author>
+    <namespace>DevNull</namespace>
+    <category>files</category>
+    <category>tools</category>
+
+    <bugs>https://github.com/luiscarmo/devnull/issues</bugs>
+    <repository>https://github.com/luiscarmo/devnull</repository>
+
+    <dependencies>
+        <nextcloud min-version="28" max-version="34"/>
+        <php min-version="8.2"/>
+    </dependencies>
+
+    <settings>
+        <admin>OCA\DevNull\Settings\AdminSettings</admin>
+        <admin-section>OCA\DevNull\Settings\AdminSection</admin-section>
+    </settings>
+
+    <navigations>
+        <navigation>
+            <name>DevNull</name>
+            <route>devnull.page.index</route>
+            <icon>app.svg</icon>
+            <order>50</order>
+        </navigation>
+    </navigations>
+</info>
