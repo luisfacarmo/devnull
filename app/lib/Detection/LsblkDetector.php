@@ -54,7 +54,9 @@ class LsblkDetector implements DiskDetectorInterface
             // Process partitions with a known filesystem
             if ($type === 'part' && !empty($fstype)) {
                 // Skip system partitions
-                if (in_array($mountpoint, $systemMounts, true)) {
+                $isSystem = in_array($mountpoint, $systemMounts, true)
+                    || str_starts_with($mountpoint ?? '', '/mnt/');
+                if ($isSystem) {
                     // Recurse into children if any
                     if (!empty($device['children'])) {
                         $this->collectPartitions($device['children'], $disks);
