@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace OCA\DevNull\Controller;
 
 use OCA\DevNull\Db\Entity\Operation;
-use OCA\DevNull\Db\Mapper\DiskMapper;
-use OCA\DevNull\Db\Mapper\MountMapper;
 use OCA\DevNull\Db\Mapper\OperationMapper;
 use OCA\DevNull\Event\IngestCompletedEvent;
 use OCA\DevNull\Ingest\IngestPipeline;
@@ -24,8 +22,6 @@ class IngestController extends OCSController
         string $appName,
         IRequest $request,
         private IngestPipeline $pipeline,
-        private MountMapper $mountMapper,
-        private DiskMapper $diskMapper,
         private OperationMapper $operationMapper,
         private IEventDispatcher $eventDispatcher,
         private ?string $userId,
@@ -42,23 +38,22 @@ class IngestController extends OCSController
      */
     public function start(string $device, array $steps = []): DataResponse
     {
-        // Find the mount for this device
-        $mounts = $this->mountMapper->findActiveMounts();
-        $mountRecord = null;
-        foreach ($mounts as $mount) {
-            // Match by mountpoint containing device name
-            if (str_contains($mount->getMountpoint(), $device) || true) {
-                $mountRecord = $mount;
+        // Find mountpoint for this device from disk info
+        $detector = \OCP\Server::get(\OCA\DevNull\Capability\DiskDetectorInterface::class);
+        $disks = $detector->listAvailable();
+        $mountpoint = null;
+        $diskId = 0;
+
+        foreach ($disks as $disk) {
+            if ($disk->name === $device && $disk->mountpoint) {
+                $mountpoint = $disk->mountpoint;
                 break;
             }
         }
 
-        if ($mountRecord === null) {
-            // Try using the device info to find mountpoint
-            return new DataResponse(['error' => 'Disco não está montado pelo DevNull'], 404);
+        if ($mountpoint === null) {
+            return new DataResponse(['error' => 'Disco não está montado'], 404);
         }
-
-        $mountpoint = $mountRecord->getMountpoint();
 
         // Default: run all steps
         if (empty($steps)) {
@@ -67,7 +62,7 @@ class IngestController extends OCSController
 
         // Log operation start
         $op = new Operation();
-        $op->setDiskId($mountRecord->getDiskId());
+        $op->setDiskId(0);
         $op->setUserId($this->userId);
         $op->setType('ingest');
         $op->setStatus('running');

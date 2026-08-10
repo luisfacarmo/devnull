@@ -31,18 +31,23 @@ class OperationController extends OCSController
      */
     public function list(int $limit = 20): DataResponse
     {
-        $operations = $this->operationMapper->findByUser($this->userId, $limit);
+        try {
+            $operations = $this->operationMapper->findByUser($this->userId, $limit);
 
-        $result = array_map(fn($op) => [
-            'id' => $op->getId(),
-            'disk_id' => $op->getDiskId(),
-            'type' => $op->getType(),
-            'status' => $op->getStatus(),
-            'started_at' => $op->getStartedAt(),
-            'finished_at' => $op->getFinishedAt(),
-            'error' => $op->getErrorMsg(),
-        ], $operations);
+            $result = array_map(fn($op) => [
+                'id' => $op->getId(),
+                'disk_id' => $op->getDiskId(),
+                'type' => $op->getType(),
+                'status' => $op->getStatus(),
+                'started_at' => $op->getStartedAt(),
+                'finished_at' => $op->getFinishedAt(),
+                'error' => $op->getErrorMsg(),
+            ], $operations);
 
-        return new DataResponse(['operations' => $result]);
+            return new DataResponse(['operations' => $result]);
+        } catch (\Exception $e) {
+            // Table may not exist yet (migration not run)
+            return new DataResponse(['operations' => [], 'warning' => 'Banco de dados ainda não inicializado']);
+        }
     }
 }
