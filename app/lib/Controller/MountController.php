@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace OCA\DevNull\Controller;
 
-use OCA\DevNull\Capability\MountStrategyInterface;
 use OCA\DevNull\Capability\StorageRegistrarInterface;
 use OCA\DevNull\Capability\DiskDetectorInterface;
+use OCA\DevNull\Mount\MountStrategyFactory;
+use OCA\DevNull\Mount\NullMountStrategy;
 use OCA\DevNull\Db\Entity\Disk;
 use OCA\DevNull\Db\Entity\Mount;
 use OCA\DevNull\Db\Entity\Operation;
@@ -32,7 +33,6 @@ class MountController extends OCSController
     public function __construct(
         string $appName,
         IRequest $request,
-        private MountStrategyInterface $mountStrategy,
         private StorageRegistrarInterface $storageRegistrar,
         private DiskDetectorInterface $detector,
         private IEventDispatcher $eventDispatcher,
@@ -62,8 +62,9 @@ class MountController extends OCSController
         $label = $diskInfo?->label ?? $device;
         $mountpoint = self::MOUNT_BASE . '/' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $label);
 
-        // 3. Mount via strategy
-        $result = $this->mountStrategy->mount($device, $mountpoint);
+        // 3. Mount via strategy (resolved lazily)
+        $mountStrategy = $this->getMountStrategy();
+        $result = $mountStrategy->mount($device, $mountpoint);
         if (!$result->success) {
             return new DataResponse(['error' => $result->error], 500);
         }
@@ -133,7 +134,8 @@ class MountController extends OCSController
         $this->removeMarker($mountRecord->getMountpoint());
 
         // 5. Unmount via strategy
-        $result = $this->mountStrategy->unmount($device);
+        $mountStrategy = $this->getMountStrategy();
+        $result = $mountStrategy->unmount($device);
         if (!$result->success) {
             return new DataResponse(['error' => $result->error], 500);
         }
@@ -240,5 +242,15 @@ class MountController extends OCSController
     {
         $info = $this->findDisk($device);
         return $info?->serial ?? $device;
+    }
+
+    private function getMountStrategy(): \OCA\DevNull\Capability\MountStrategyInterface
+    {
+        try {
+            $factory = \OCP\Server::get(MountStrategyFactory::class);
+            return $factory->create();
+        } catch (\Exception) {
+            return new NullMountStrategy();
+        }
     }
 }
