@@ -14,6 +14,7 @@
 			:disks="disks"
 			:loading="loading"
 			:error="error"
+			@refresh="fetchDisks"
 			@mount="handleMount"
 			@unmount="handleUnmount" />
 	</div>
@@ -53,7 +54,7 @@ export default {
 				this.disks = response.data.ocs?.data?.disks ?? []
 			} catch (e) {
 				this.error = e.response?.data?.ocs?.meta?.message
-					?? t('devnull', 'Failed to load disks')
+					?? t('devnull', 'Falha ao carregar discos')
 				console.error('DevNull: fetch disks failed', e)
 			} finally {
 				this.loading = false
@@ -61,24 +62,6 @@ export default {
 		},
 		refresh() {
 			this.fetchDisks()
-		},
-		async handleMount(device) {
-			try {
-				const url = generateOcsUrl('/apps/devnull/api/v1/mount')
-				await axios.post(url, { device })
-				this.fetchDisks()
-			} catch (e) {
-				console.error('DevNull: mount failed', e)
-			}
-		},
-		async handleUnmount(device) {
-			try {
-				const url = generateOcsUrl('/apps/devnull/api/v1/unmount')
-				await axios.post(url, { device })
-				this.fetchDisks()
-			} catch (e) {
-				console.error('DevNull: unmount failed', e)
-			}
 		},
 	},
 }

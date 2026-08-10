@@ -32,8 +32,7 @@
 				v-for="disk in disks"
 				:key="disk.name"
 				:disk="disk"
-				@mount="$emit('mount', disk.name)"
-				@unmount="$emit('unmount', disk.name)" />
+				@refresh="$emit('refresh')" />
 		</div>
 	</div>
 </template>

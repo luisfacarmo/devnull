@@ -14,6 +14,7 @@ use OCA\DevNull\Detection\DetectorFactory;
 use OCA\DevNull\Event\DiskMountedEvent;
 use OCA\DevNull\Event\DiskUnmountedEvent;
 use OCA\DevNull\Event\IngestCompletedEvent;
+use OCA\DevNull\Listener\LogOnUnmount;
 use OCA\DevNull\Listener\NotifyOnIngestComplete;
 use OCA\DevNull\Listener\TriggerScanOnMount;
 use OCA\DevNull\Mount\MountStrategyFactory;
@@ -66,6 +67,10 @@ class Application extends App implements IBootstrap
         $context->registerEventListener(
             DiskMountedEvent::class,
             TriggerScanOnMount::class
+        );
+        $context->registerEventListener(
+            DiskUnmountedEvent::class,
+            LogOnUnmount::class
         );
         $context->registerEventListener(
             IngestCompletedEvent::class,

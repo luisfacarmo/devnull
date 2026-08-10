@@ -1,9 +1,12 @@
 <template>
-	<div class="devnull-disk-card">
+	<div class="devnull-disk-card" :class="{ 'devnull-disk-card--mounted': disk.mounted, 'devnull-disk-card--loading': loading }">
 		<div class="devnull-disk-card__header">
 			<HarddiskIcon :size="24" />
 			<span class="devnull-disk-card__name">
 				{{ disk.label || disk.name }}
+			</span>
+			<span v-if="disk.mounted" class="devnull-disk-card__badge">
+				{{ t('devnull', 'Montado') }}
 			</span>
 		</div>
 
@@ -15,39 +18,52 @@
 			<span>{{ disk.size }}</span>
 
 			<span>{{ t('devnull', 'Filesystem') }}</span>
-			<span>{{ disk.fstype || t('devnull', 'Unknown') }}</span>
+			<span>{{ disk.fstype || t('devnull', 'Desconhecido') }}</span>
 
 			<span v-if="disk.model">{{ t('devnull', 'Model') }}</span>
 			<span v-if="disk.model">{{ disk.model }}</span>
 
 			<span v-if="disk.serial">{{ t('devnull', 'Serial') }}</span>
 			<span v-if="disk.serial">{{ disk.serial }}</span>
+
+			<span v-if="disk.mountpoint">{{ t('devnull', 'Montado em') }}</span>
+			<span v-if="disk.mountpoint">{{ disk.mountpoint }}</span>
+		</div>
+
+		<div v-if="error" class="devnull-disk-card__error">
+			{{ error }}
 		</div>
 
 		<div class="devnull-disk-card__actions">
 			<NcButton v-if="!disk.mounted"
 				type="primary"
-				@click="$emit('mount')">
+				:disabled="loading"
+				@click="handleMount">
 				<template #icon>
-					<PlayIcon :size="20" />
+					<NcLoadingIcon v-if="loading" :size="20" />
+					<PlayIcon v-else :size="20" />
 				</template>
-				{{ t('devnull', 'Mount') }}
+				{{ t('devnull', 'Montar') }}
 			</NcButton>
 
 			<NcButton v-else
 				type="error"
-				@click="$emit('unmount')">
+				:disabled="loading"
+				@click="handleEject">
 				<template #icon>
-					<EjectIcon :size="20" />
+					<NcLoadingIcon v-if="loading" :size="20" />
+					<EjectIcon v-else :size="20" />
 				</template>
-				{{ t('devnull', 'Eject') }}
+				{{ t('devnull', 'Ejetar') }}
 			</NcButton>
 		</div>
 	</div>
 </template>
 
 <script>
-import { NcButton } from '@nextcloud/vue'
+import { NcButton, NcLoadingIcon } from '@nextcloud/vue'
+import { generateOcsUrl } from '@nextcloud/router'
+import axios from '@nextcloud/axios'
 import HarddiskIcon from 'vue-material-design-icons/Harddisk.vue'
 import PlayIcon from 'vue-material-design-icons/Play.vue'
 import EjectIcon from 'vue-material-design-icons/Eject.vue'
@@ -56,6 +72,7 @@ export default {
 	name: 'DiskCard',
 	components: {
 		NcButton,
+		NcLoadingIcon,
 		HarddiskIcon,
 		PlayIcon,
 		EjectIcon,
@@ -66,5 +83,73 @@ export default {
 			required: true,
 		},
 	},
+	data() {
+		return {
+			loading: false,
+			error: null,
+		}
+	},
+	methods: {
+		async handleMount() {
+			this.loading = true
+			this.error = null
+			try {
+				const url = generateOcsUrl('/apps/devnull/api/v1/mount')
+				await axios.post(url, { device: this.disk.name })
+				this.$emit('refresh')
+			} catch (e) {
+				this.error = e.response?.data?.ocs?.data?.error
+					?? t('devnull', 'Falha ao montar')
+				console.error('DevNull: mount failed', e)
+			} finally {
+				this.loading = false
+			}
+		},
+		async handleEject() {
+			this.loading = true
+			this.error = null
+			try {
+				const url = generateOcsUrl('/apps/devnull/api/v1/unmount')
+				await axios.post(url, { device: this.disk.name })
+				this.$emit('refresh')
+			} catch (e) {
+				this.error = e.response?.data?.ocs?.data?.error
+					?? t('devnull', 'Falha ao ejetar')
+				console.error('DevNull: unmount failed', e)
+			} finally {
+				this.loading = false
+			}
+		},
+	},
 }
 </script>
+
+<style scoped>
+.devnull-disk-card--mounted {
+	border-color: var(--color-success);
+	border-width: 2px;
+}
+
+.devnull-disk-card--loading {
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+.devnull-disk-card__badge {
+	background: var(--color-success);
+	color: white;
+	font-size: 0.75em;
+	padding: 2px 8px;
+	border-radius: 10px;
+	margin-left: auto;
+}
+
+.devnull-disk-card__error {
+	color: var(--color-error);
+	font-size: 0.85em;
+	margin-top: 8px;
+	padding: 4px 8px;
+	background: var(--color-error-background, #fdecea);
+	border-radius: 4px;
+}
+</style>
