@@ -35,3 +35,13 @@ build/
 
 # PHP
 .phpunit.result.cache
+
+
+# Release artifacts
+dist/
+
+# App signing keys (NEVER commit)
+*.key
+*.csr
+*.crt
+*.pem
