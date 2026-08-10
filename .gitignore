@@ -45,3 +45,10 @@ dist/
 *.csr
 *.crt
 *.pem
+
+
+# IDE auto-generated rules
+.claude/
+.cursor/
+.windsurf/
+.kiro/steering/appsec-rules.md

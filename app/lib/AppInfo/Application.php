@@ -17,6 +17,8 @@ use OCA\DevNull\Event\IngestCompletedEvent;
 use OCA\DevNull\Listener\NotifyOnIngestComplete;
 use OCA\DevNull\Listener\TriggerScanOnMount;
 use OCA\DevNull\Mount\MountStrategyFactory;
+use OCA\DevNull\Capability\StatusTransportInterface;
+use OCA\DevNull\Status\PollingTransport;
 use OCA\DevNull\Storage\NextcloudStorageRegistrar;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -54,6 +56,10 @@ class Application extends App implements IBootstrap
 
         $context->registerService(StorageRegistrarInterface::class, function ($c) {
             return $c->get(NextcloudStorageRegistrar::class);
+        });
+
+        $context->registerService(StatusTransportInterface::class, function ($c) {
+            return $c->get(PollingTransport::class);
         });
 
         // Event listeners (P2: Domain Separation via events)
