@@ -1,0 +1,54 @@
+name: Release to Nextcloud App Store
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build frontend
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package app
+        run: |
+          mkdir -p dist
+          tar -czf dist/devnull-${GITHUB_REF_NAME#v}.tar.gz \
+            --transform "s,^app/,devnull/," \
+            --exclude="app/node_modules" \
+            --exclude="app/tests" \
+            app/
+
+      - name: Sign package
+        run: |
+          echo "${{ secrets.APP_PRIVATE_KEY }}" > devnull.key
+          openssl dgst -sha512 -sign devnull.key \
+            dist/devnull-${GITHUB_REF_NAME#v}.tar.gz | openssl base64 > dist/signature
+          rm devnull.key
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Nextcloud App Store
+        uses: R0Wi/nextcloud-appstore-push-action@v1
+        with:
+          app_name: devnull
+          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
+          download_url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/devnull-${GITHUB_REF_NAME#v}.tar.gz
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
