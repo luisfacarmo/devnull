@@ -6,7 +6,6 @@ daemon/__pycache__/
 daemon/devnull_daemon/__pycache__/
 
 # Build artifacts
-app/js/
 app/css/style.css.map
 
 # Environment
