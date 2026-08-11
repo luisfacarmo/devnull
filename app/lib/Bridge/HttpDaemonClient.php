@@ -33,6 +33,14 @@ class HttpDaemonClient implements DaemonClientInterface
         );
     }
 
+    /**
+     * Get the configured auth token for daemon communication.
+     */
+    private function getAuthToken(): string
+    {
+        return $this->config->getAppValue('devnull', 'daemon_token', '');
+    }
+
     public function isAvailable(): bool
     {
         try {
@@ -88,7 +96,12 @@ class HttpDaemonClient implements DaemonClientInterface
         $client = $this->httpClientService->newClient();
         $url = $this->baseUrl . $path;
 
-        $options = ['timeout' => self::TIMEOUT];
+        $options = [
+            'timeout' => self::TIMEOUT,
+            'headers' => [
+                'X-DevNull-Token' => $this->getAuthToken(),
+            ],
+        ];
         if (!empty($body)) {
             $options['json'] = $body;
         }

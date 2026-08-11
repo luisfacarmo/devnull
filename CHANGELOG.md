@@ -4,6 +4,31 @@ All notable changes to DevNull will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] — 2026-08-11
+
+### Added
+- **Python daemon** (`daemon/`) — standalone service for hardware detection and mount
+  - FastAPI REST API on port 9876 (configurable)
+  - Hotplug detection via pyudev (real-time) or lsblk polling (fallback)
+  - Auto-mount on plug (optional, configurable)
+  - Webhook notifier: calls Nextcloud app on disk_added/disk_removed
+  - SSE `/api/v1/events` endpoint for real-time frontend push
+  - Event history with replay on reconnection
+  - Shared token auth (X-DevNull-Token)
+  - systemd service unit for production deployment
+- **DaemonController** (PHP) — webhook receiver for daemon events
+  - POST `/api/v1/daemon/event` — receives hotplug notifications
+  - GET `/api/v1/daemon/config` — daemon self-configuration
+  - Auto-registers external storage when daemon reports mounted disk
+  - Auto-removes external storage when daemon reports disk unplugged
+  - Token auth via X-DevNull-Token (no NC session required)
+- **HttpDaemonClient** now sends auth token on all requests to daemon
+
+### Changed
+- Daemon mount strategies check lsblk before calling udisksctl (prevents AlreadyMounted errors)
+- Daemon parses real mountpoint from udisksctl stdout (handles UTF-8 labels)
+- Version bump: app 0.4.0, daemon 0.4.0
+
 ## [0.3.0] — 2026-08-10
 
 ### Fixed

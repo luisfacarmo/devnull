@@ -18,7 +18,7 @@ scan, deduplicate and classify their contents — all from the Nextcloud interfa
 
 No terminal required. Plug in a disk, click mount, let your server do the rest.
     ]]></description>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <licence>agpl</licence>
     <author mail="luis@example.com" homepage="https://github.com/luiscarmo">Luis Carmo</author>
     <namespace>DevNull</namespace>

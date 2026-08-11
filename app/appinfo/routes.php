@@ -31,6 +31,10 @@ return [
 
         // Persistence (logs)
         ['name' => 'Operation#list', 'url' => '/api/v1/logs', 'verb' => 'GET'],
+
+        // Daemon bridge (webhook receiver)
+        ['name' => 'Daemon#event', 'url' => '/api/v1/daemon/event', 'verb' => 'POST'],
+        ['name' => 'Daemon#getConfig', 'url' => '/api/v1/daemon/config', 'verb' => 'GET'],
     ],
     'routes' => [
         // Frontend page

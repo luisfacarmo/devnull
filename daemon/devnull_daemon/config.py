@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     mount_base: str = "/media/devnull"
     mount_strategy: str = "udisks"  # "udisks" or "sudo"
 
+    # Nextcloud integration
+    nextcloud_url: str = "http://127.0.0.1"
+    nextcloud_verify_ssl: bool = False
+    auto_mount_on_plug: bool = False
+
     # Logging
     log_level: str = "INFO"
 
