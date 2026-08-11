@@ -24,6 +24,12 @@ class UdisksMountStrategy implements MountStrategyInterface
     {
         $devicePath = '/dev/' . $device;
 
+        // Check if already mounted BEFORE calling udisksctl
+        $existingMount = $this->detectMountpoint($device);
+        if ($existingMount !== null) {
+            return MountResult::success($existingMount);
+        }
+
         try {
             $output = $this->commandRunner->run('udisksctl', [
                 'mount',
@@ -40,20 +46,12 @@ class UdisksMountStrategy implements MountStrategyInterface
 
             return MountResult::success($actualMountpoint);
         } catch (\RuntimeException $e) {
-            // Handle "AlreadyMounted" — not a real failure
-            $msg = $e->getMessage();
-            if (str_contains($msg, 'AlreadyMounted') || str_contains($msg, 'already mounted')) {
-                // Parse mountpoint from error: "...already mounted at `/media/www-data/LABEL'."
-                if (preg_match("/mounted at [`'](.+?)['`]/", $msg, $matches)) {
-                    return MountResult::success(trim($matches[1]));
-                }
-                // Fallback: try to get mountpoint from lsblk
-                $detected = $this->detectMountpoint($device);
-                if ($detected !== null) {
-                    return MountResult::success($detected);
-                }
+            // If mount failed, check again if it's now mounted (race condition)
+            $detected = $this->detectMountpoint($device);
+            if ($detected !== null) {
+                return MountResult::success($detected);
             }
-            return MountResult::failure('udisksctl mount failed: ' . $msg);
+            return MountResult::failure('udisksctl mount failed: ' . $e->getMessage());
         }
     }
 
