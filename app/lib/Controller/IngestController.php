@@ -35,6 +35,11 @@ class IngestController extends OCSController
      */
     public function start(string $device, array $steps = []): DataResponse
     {
+        // Validate device name (same pattern as MountController)
+        if (!preg_match('/^[a-z0-9]+$/', $device)) {
+            return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
+        }
+
         try {
             // Find mountpoint from disk detector
             $detector = \OCP\Server::get(\OCA\DevNull\Capability\DiskDetectorInterface::class);

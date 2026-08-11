@@ -72,7 +72,7 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
             $this->logger->info('DevNull: storage registered', ['id' => $storageId]);
 
             // Trigger file scan for the owner so content appears
-            $this->scanUserFiles($ownerId);
+            $this->scanUserFiles($ownerId, $label);
 
             return $storageId;
         } catch (\Exception $e) {
@@ -121,15 +121,46 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
         }
     }
 
-    private function scanUserFiles(string $userId): void
+    /**
+     * Trigger a real filesystem scan on the newly mounted storage.
+     *
+     * Uses \OC\Files\Utils\Scanner (same engine as `occ files:scan`)
+     * but invoked directly via PHP — no subprocess needed.
+     *
+     * Scans only the specific mount label path to avoid full-user scan overhead.
+     */
+    private function scanUserFiles(string $userId, string $label = ''): void
     {
         try {
-            // Use the Scanner directly via PHP API
-            $userFolder = \OCP\Server::get(\OCP\Files\IRootFolder::class)->getUserFolder($userId);
-            // Accessing the folder triggers a lightweight scan
-            $this->logger->debug('DevNull: user folder accessed for scan trigger', ['user' => $userId]);
+            // Setup user filesystem (required before scanning)
+            \OC_Util::setupFS($userId);
+
+            // Build scan path: /{userId}/files or /{userId}/files/{label}
+            $scanPath = '/' . $userId . '/files';
+            if ($label !== '') {
+                $scanPath .= '/' . $label;
+            }
+
+            // Use the Scanner utility (same as occ files:scan internals)
+            $scanner = new \OC\Files\Utils\Scanner(
+                $userId,
+                \OCP\Server::get(\OCP\Files\Storage\IStorageFactory::class),
+                \OCP\Server::get(\OCP\IDBConnection::class),
+                \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class),
+                $this->logger,
+            );
+
+            $scanner->scan($scanPath, $recursive = true, null);
+
+            $this->logger->info('DevNull: file scan completed', [
+                'user' => $userId,
+                'path' => $scanPath,
+            ]);
         } catch (\Exception $e) {
-            $this->logger->warning('DevNull: file scan trigger failed', ['error' => $e->getMessage()]);
+            $this->logger->warning('DevNull: file scan failed (content may need manual scan)', [
+                'user' => $userId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }
