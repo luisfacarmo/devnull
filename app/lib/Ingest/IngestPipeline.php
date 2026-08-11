@@ -15,7 +15,7 @@ use Psr\Log\LoggerInterface;
  */
 class IngestPipeline
 {
-    /** @var array<IngestStepInterface> */
+    /** @var array<string, IngestStepInterface> */
     private array $availableSteps;
 
     public function __construct(
@@ -51,7 +51,7 @@ class IngestPipeline
      * @param string $mountpoint
      * @param array<string> $stepIds Steps to execute (in order)
      * @param string $userId
-     * @return array{success: bool, results: array}
+     * @return array{success: bool, results: array<string, array{success: bool, message: string, details?: array<string, mixed>}>}
      */
     public function execute(string $mountpoint, array $stepIds, string $userId): array
     {

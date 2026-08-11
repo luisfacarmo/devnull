@@ -28,18 +28,23 @@ class OperationController extends OCSController
     /**
      * List recent operations for the current user.
      *
+     * @NoAdminRequired
      * @param int $limit Max results (default 20)
      * @return DataResponse
      */
     public function list(int $limit = 20): DataResponse
     {
+        if ($this->userId === null) {
+            return new DataResponse(['success' => true, 'operations' => []]);
+        }
+
         try {
             $qb = $this->db->getQueryBuilder();
             $qb->select('*')
                 ->from('devnull_operations')
                 ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
                 ->orderBy('started_at', 'DESC')
-                ->setMaxResults($limit);
+                ->setMaxResults(min($limit, 100));
 
             $result = $qb->executeQuery();
             $operations = [];
@@ -57,10 +62,10 @@ class OperationController extends OCSController
             }
             $result->closeCursor();
 
-            return new DataResponse(['operations' => $operations]);
+            return new DataResponse(['success' => true, 'operations' => $operations]);
         } catch (\Exception) {
             // Table doesn't exist yet — return empty gracefully
-            return new DataResponse(['operations' => []]);
+            return new DataResponse(['success' => true, 'operations' => []]);
         }
     }
 }

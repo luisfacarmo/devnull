@@ -27,6 +27,8 @@ class DiskController extends OCSController
 
     /**
      * List available external disks.
+     *
+     * @NoAdminRequired
      */
     public function list(): DataResponse
     {
@@ -35,6 +37,7 @@ class DiskController extends OCSController
             $disks = $detector->listAvailable();
 
             return new DataResponse([
+                'success' => true,
                 'disks' => array_map(fn($d) => $d->toArray(), $disks),
                 'capabilities' => [
                     'mount_available' => $this->isMountAvailable(),
@@ -43,10 +46,12 @@ class DiskController extends OCSController
         } catch (\Exception $e) {
             $this->logger->error('DevNull: disk detection failed', ['error' => $e->getMessage()]);
             return new DataResponse([
+                'success' => false,
+                'error' => 'Detecção de discos falhou: ' . $e->getMessage(),
+                'code' => 'DETECTION_FAILED',
                 'disks' => [],
                 'capabilities' => ['mount_available' => false],
-                'error' => $e->getMessage(),
-            ]);
+            ], 500);
         }
     }
 
