@@ -97,6 +97,9 @@ class MountController extends OCSController
         }
 
         try {
+            // Remove external storage before unmounting
+            $this->removeExternalStorageForDevice($device);
+
             $strategy = $this->getMountStrategy();
             $result = $strategy->unmount($device);
 
@@ -155,5 +158,31 @@ class MountController extends OCSController
             'label' => $label,
         ], JSON_PRETTY_PRINT);
         @file_put_contents($markerPath, $data);
+    }
+
+    private function removeExternalStorageForDevice(string $device): void
+    {
+        try {
+            $diskInfo = $this->findDisk($device);
+            $mountpoint = $diskInfo?->mountpoint;
+            if ($mountpoint === null) {
+                return;
+            }
+
+            // Use PHP API to find and remove matching storage
+            $globalService = \OCP\Server::get(\OCA\Files_External\Service\GlobalStoragesService::class);
+            $allStorages = $globalService->getStorages();
+
+            $mountBasename = basename($mountpoint);
+            foreach ($allStorages as $storage) {
+                $datadir = $storage->getBackendOptions()['datadir'] ?? '';
+                if (str_contains($datadir, $mountBasename)) {
+                    $globalService->removeStorage($storage->getId());
+                    $this->logger->info('DevNull: storage removido no eject', ['id' => $storage->getId()]);
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('DevNull: falha ao remover storage no eject', ['error' => $e->getMessage()]);
+        }
     }
 }
