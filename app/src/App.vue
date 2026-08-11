@@ -14,6 +14,7 @@
 			:disks="disks"
 			:loading="loading"
 			:error="error"
+			:mount-available="mountAvailable"
 			@refresh="fetchDisks" />
 
 		<OperationLog ref="operationLog" />
@@ -41,6 +42,7 @@ export default {
 			disks: [],
 			loading: false,
 			error: null,
+			mountAvailable: true,
 		}
 	},
 	mounted() {
@@ -53,7 +55,9 @@ export default {
 			try {
 				const url = generateOcsUrl('/apps/devnull/api/v1/disks')
 				const response = await axios.get(url)
-				this.disks = response.data.ocs?.data?.disks ?? []
+				const data = response.data.ocs?.data ?? {}
+				this.disks = data.disks ?? []
+				this.mountAvailable = data.capabilities?.mount_available ?? false
 			} catch (e) {
 				this.error = e.response?.data?.ocs?.meta?.message
 					?? t('devnull', 'Falha ao carregar discos')

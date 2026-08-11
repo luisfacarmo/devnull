@@ -27,12 +27,18 @@
 		</NcEmptyContent>
 
 		<!-- Disk grid -->
-		<div v-else class="devnull-disk-grid">
-			<DiskCard
-				v-for="disk in disks"
-				:key="disk.name"
-				:disk="disk"
-				@refresh="$emit('refresh')" />
+		<div v-else>
+			<div v-if="!mountAvailable" class="devnull-warning">
+				⚠️ {{ t('devnull', 'Montagem indisponível. Instale udisks2 no servidor: sudo apt install udisks2') }}
+			</div>
+			<div class="devnull-disk-grid">
+				<DiskCard
+					v-for="disk in disks"
+					:key="disk.name"
+					:disk="disk"
+					:mount-available="mountAvailable"
+					@refresh="$emit('refresh')" />
+			</div>
 		</div>
 	</div>
 </template>
@@ -65,6 +71,10 @@ export default {
 		error: {
 			type: String,
 			default: null,
+		},
+		mountAvailable: {
+			type: Boolean,
+			default: true,
 		},
 	},
 }

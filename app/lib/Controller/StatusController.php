@@ -4,36 +4,77 @@ declare(strict_types=1);
 
 namespace OCA\DevNull\Controller;
 
-use OCA\DevNull\Capability\StatusTransportInterface;
+use OCA\DevNull\AppInfo\Application;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\OCSController;
+use OCP\IDBConnection;
 use OCP\IRequest;
 
 /**
  * API: Status and progress reporting.
- * Delegates to StatusTransportInterface capability.
+ * Uses raw DB to avoid DI failures when tables don't exist.
  */
 class StatusController extends OCSController
 {
     public function __construct(
-        string $appName,
         IRequest $request,
-        private StatusTransportInterface $statusTransport,
+        private IDBConnection $db,
         private ?string $userId,
     ) {
-        parent::__construct($appName, $request);
+        parent::__construct(Application::APP_ID, $request);
     }
 
     /**
      * Get current status for the requesting user.
-     *
-     * @return DataResponse
      */
     public function index(): DataResponse
     {
+        $mounts = [];
+        $operations = [];
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')->from('devnull_mounts');
+            $result = $qb->executeQuery();
+            while ($row = $result->fetch()) {
+                $mounts[] = [
+                    'id' => (int) $row['id'],
+                    'disk_id' => (int) $row['disk_id'],
+                    'mountpoint' => $row['mountpoint'],
+                    'mounted_at' => $row['mounted_at'],
+                ];
+            }
+            $result->closeCursor();
+        } catch (\Exception) {
+            // Table doesn't exist yet
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from('devnull_operations')
+                ->where($qb->expr()->eq('status', $qb->createNamedParameter('running')));
+            $result = $qb->executeQuery();
+            while ($row = $result->fetch()) {
+                $operations[] = [
+                    'id' => (int) $row['id'],
+                    'type' => $row['type'],
+                    'status' => $row['status'],
+                    'started_at' => $row['started_at'],
+                ];
+            }
+            $result->closeCursor();
+        } catch (\Exception) {
+            // Table doesn't exist yet
+        }
+
         return new DataResponse([
-            'transport' => $this->statusTransport->getTransportType(),
-            'status' => $this->statusTransport->getStatus($this->userId),
+            'transport' => 'polling',
+            'status' => [
+                'mounts' => $mounts,
+                'operations' => $operations,
+                'timestamp' => time(),
+            ],
         ]);
     }
 }

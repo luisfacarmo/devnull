@@ -5,19 +5,17 @@ declare(strict_types=1);
 namespace OCA\DevNull\Listener;
 
 use OCA\DevNull\Event\DiskMountedEvent;
-use OCA\DevNull\Ingest\IngestPipeline;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use Psr\Log\LoggerInterface;
 
 /**
- * Triggers the ingest pipeline when a disk is mounted.
- * Runs scan → dedup → classify automatically.
+ * Logs mount events. Full ingest pipeline will run via BackgroundJob (Sprint 5).
+ * NEVER runs heavy operations synchronously in an event listener.
  */
 class TriggerScanOnMount implements IEventListener
 {
     public function __construct(
-        private IngestPipeline $pipeline,
         private LoggerInterface $logger,
     ) {
     }
@@ -28,19 +26,14 @@ class TriggerScanOnMount implements IEventListener
             return;
         }
 
-        $this->logger->info('DevNull: Auto-ingest disparado após mount', [
+        $this->logger->info('DevNull: disco montado — pipeline disponível para execução manual', [
             'device' => $event->device,
             'mountpoint' => $event->mountpoint,
             'user' => $event->userId,
         ]);
 
-        // Run full pipeline: scan → dedup → classify
-        $steps = ['scan', 'dedup', 'classify'];
-        $result = $this->pipeline->execute($event->mountpoint, $steps, $event->userId);
-
-        $this->logger->info('DevNull: Auto-ingest concluído', [
-            'success' => $result['success'],
-            'device' => $event->device,
-        ]);
+        // TODO Sprint 5: Schedule IngestBackgroundJob instead of running synchronously
+        // $jobList = \OCP\Server::get(\OCP\BackgroundJob\IJobList::class);
+        // $jobList->add(IngestBackgroundJob::class, ['mountpoint' => $event->mountpoint, ...]);
     }
 }

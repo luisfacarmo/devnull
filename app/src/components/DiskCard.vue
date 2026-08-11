@@ -37,7 +37,7 @@
 		<div class="devnull-disk-card__actions">
 			<NcButton v-if="!disk.mounted"
 				type="primary"
-				:disabled="loading"
+				:disabled="loading || !mountAvailable"
 				@click="handleMount">
 				<template #icon>
 					<NcLoadingIcon v-if="loading" :size="20" />
@@ -96,6 +96,10 @@ export default {
 		disk: {
 			type: Object,
 			required: true,
+		},
+		mountAvailable: {
+			type: Boolean,
+			default: true,
 		},
 	},
 	data() {

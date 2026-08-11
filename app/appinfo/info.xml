@@ -18,7 +18,7 @@ scan, deduplicate and classify their contents — all from the Nextcloud interfa
 
 No terminal required. Plug in a disk, click mount, let your server do the rest.
     ]]></description>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <licence>agpl</licence>
     <author mail="luis@example.com" homepage="https://github.com/luiscarmo">Luis Carmo</author>
     <namespace>DevNull</namespace>
@@ -32,11 +32,6 @@ No terminal required. Plug in a disk, click mount, let your server do the rest.
         <nextcloud min-version="28" max-version="34"/>
         <php min-version="8.2"/>
     </dependencies>
-
-    <settings>
-        <admin>OCA\DevNull\Settings\AdminSettings</admin>
-        <admin-section>OCA\DevNull\Settings\AdminSection</admin-section>
-    </settings>
 
     <navigations>
         <navigation>
