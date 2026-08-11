@@ -66,6 +66,9 @@ class ScanStep implements IngestStepInterface
 
             $this->logger->info('DevNull: ScanStep concluído', ['user' => $userId]);
 
+            // Auto-trigger Recognize classification if enabled
+            $this->triggerAutoClassify($userId);
+
             return [
                 'success' => true,
                 'message' => 'Scan concluído',
@@ -77,6 +80,48 @@ class ScanStep implements IngestStepInterface
                 'success' => false,
                 'message' => 'Scan falhou: ' . $e->getMessage(),
             ];
+        }
+    }
+
+    /**
+     * Automatically schedule Recognize classification after scan if enabled.
+     *
+     * Respects the admin setting `auto_classify_on_scan`.
+     * Uses IJobList to schedule Recognize's background job.
+     */
+    private function triggerAutoClassify(string $userId): void
+    {
+        try {
+            $config = \OCP\Server::get(\OCP\IConfig::class);
+            if ($config->getAppValue('devnull', 'auto_classify_on_scan', 'true') !== 'true') {
+                return;
+            }
+
+            // Check if Recognize is available
+            $appManager = \OCP\Server::get(\OCP\App\IAppManager::class);
+            if (!$appManager->isEnabledForUser('recognize')) {
+                return;
+            }
+
+            // Schedule Recognize classification job
+            $jobList = \OCP\Server::get(\OCP\BackgroundJob\IJobList::class);
+
+            $jobClass = 'OCA\\Recognize\\BackgroundJobs\\ClassifyJob';
+            if (!class_exists($jobClass)) {
+                $jobClass = 'OCA\\Recognize\\BackgroundJobs\\SchedulerJob';
+            }
+
+            if (class_exists($jobClass)) {
+                $jobList->add($jobClass, ['user' => $userId]);
+                $this->logger->info('DevNull: auto-classify scheduled after scan', [
+                    'user' => $userId,
+                    'job' => $jobClass,
+                ]);
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug('DevNull: auto-classify trigger failed (non-critical)', [
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

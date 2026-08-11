@@ -95,6 +95,14 @@ class MountController extends OCSController
                 'storage_id' => $storageId,
             ]);
 
+            // Send Nextcloud notification
+            try {
+                $notificationService = \OCP\Server::get(\OCA\DevNull\Notification\NotificationService::class);
+                $notificationService->notifyMountComplete($this->userId, $device, $label, $actualMountpoint);
+            } catch (\Exception) {
+                // Non-critical
+            }
+
             return new DataResponse([
                 'success' => true,
                 'mountpoint' => $actualMountpoint,

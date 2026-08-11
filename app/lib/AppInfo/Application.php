@@ -17,6 +17,7 @@ use OCA\DevNull\Event\IngestCompletedEvent;
 use OCA\DevNull\Listener\LogOnUnmount;
 use OCA\DevNull\Listener\NotifyOnIngestComplete;
 use OCA\DevNull\Listener\TriggerScanOnMount;
+use OCA\DevNull\Notification\Notifier;
 use OCA\DevNull\Storage\NextcloudStorageRegistrar;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -66,6 +67,9 @@ class Application extends App implements IBootstrap
         $context->registerEventListener(DiskMountedEvent::class, TriggerScanOnMount::class);
         $context->registerEventListener(DiskUnmountedEvent::class, LogOnUnmount::class);
         $context->registerEventListener(IngestCompletedEvent::class, NotifyOnIngestComplete::class);
+
+        // Notification handler
+        $context->registerNotifierService(Notifier::class);
     }
 
     public function boot(IBootContext $context): void

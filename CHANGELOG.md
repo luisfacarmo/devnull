@@ -4,6 +4,34 @@ All notable changes to DevNull will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] — 2026-08-11
+
+### Added
+- **Admin settings page** — automation rules configurable from NC admin panel
+  - auto_mount_on_plug, auto_ingest_on_mount, auto_classify_on_scan
+  - notify_on_mount, notify_on_ingest_complete
+  - daemon_url, daemon_token, default_mount_user
+  - OCS API: GET/PUT `/api/v1/settings`
+- **Nextcloud notifications** — push notifications in NC notification panel
+  - Disk mounted (device, mountpoint)
+  - Ingest pipeline completed (steps count)
+  - New disk detected (hotplug via daemon)
+  - Respects admin settings (can be toggled off)
+- **Auto-classify trigger** — after scan completes, automatically schedules Recognize ClassifyJob via IJobList (configurable via `auto_classify_on_scan`)
+- **Activity dashboard** — enhanced OperationLog Vue component
+  - Stats summary (total/completed/failed/running)
+  - Type and status filters
+  - Auto-refresh every 30s
+  - Duration column
+  - Type icons and empty state hints
+
+### Changed
+- SettingsController registered in routes (GET/PUT `/api/v1/settings`)
+- AdminSection + AdminSettings registered in info.xml for NC admin panel
+- Notifier registered in Application.php via `registerNotifierService`
+- MountController sends notification after successful mount
+- IngestController sends notification after pipeline completion
+
 ## [0.4.0] — 2026-08-11
 
 ### Added

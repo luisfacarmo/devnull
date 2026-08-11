@@ -35,6 +35,10 @@ return [
         // Daemon bridge (webhook receiver)
         ['name' => 'Daemon#event', 'url' => '/api/v1/daemon/event', 'verb' => 'POST'],
         ['name' => 'Daemon#getConfig', 'url' => '/api/v1/daemon/config', 'verb' => 'GET'],
+
+        // Admin settings (automation rules)
+        ['name' => 'Settings#get', 'url' => '/api/v1/settings', 'verb' => 'GET'],
+        ['name' => 'Settings#update', 'url' => '/api/v1/settings', 'verb' => 'PUT'],
     ],
     'routes' => [
         // Frontend page

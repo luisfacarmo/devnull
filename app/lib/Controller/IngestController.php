@@ -89,6 +89,15 @@ class IngestController extends OCSController
             // Execute
             $result = $pipeline->execute($mountpoint, $steps, $this->userId);
 
+            // Send notification on completion
+            try {
+                $stepsCompleted = count(array_filter($result['results'], fn($r) => $r['success'] ?? false));
+                $notificationService = \OCP\Server::get(\OCA\DevNull\Notification\NotificationService::class);
+                $notificationService->notifyIngestComplete($this->userId, $device, $device, $stepsCompleted);
+            } catch (\Exception) {
+                // Non-critical
+            }
+
             return new DataResponse([
                 'success' => $result['success'],
                 'results' => $result['results'],

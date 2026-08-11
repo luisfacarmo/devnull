@@ -164,11 +164,44 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
                 'user' => $userId,
                 'path' => $scanPath,
             ]);
+
+            // Auto-trigger Recognize classification if enabled
+            $this->triggerAutoClassify($userId);
         } catch (\Exception $e) {
             $this->logger->warning('DevNull: file scan failed (content may need manual scan)', [
                 'user' => $userId,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Schedule Recognize classification if auto_classify_on_scan is enabled.
+     */
+    private function triggerAutoClassify(string $userId): void
+    {
+        try {
+            $config = \OCP\Server::get(\OCP\IConfig::class);
+            if ($config->getAppValue('devnull', 'auto_classify_on_scan', 'true') !== 'true') {
+                return;
+            }
+
+            $appManager = \OCP\Server::get(\OCP\App\IAppManager::class);
+            if (!$appManager->isEnabledForUser('recognize')) {
+                return;
+            }
+
+            $jobList = \OCP\Server::get(\OCP\BackgroundJob\IJobList::class);
+            $jobClass = 'OCA\\Recognize\\BackgroundJobs\\ClassifyJob';
+            if (!class_exists($jobClass)) {
+                $jobClass = 'OCA\\Recognize\\BackgroundJobs\\SchedulerJob';
+            }
+            if (class_exists($jobClass)) {
+                $jobList->add($jobClass, ['user' => $userId]);
+                $this->logger->info('DevNull: auto-classify scheduled post-mount scan', ['user' => $userId]);
+            }
+        } catch (\Exception) {
+            // Non-critical
         }
     }
 }
