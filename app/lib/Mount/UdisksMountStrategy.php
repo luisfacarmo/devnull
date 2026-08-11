@@ -40,7 +40,36 @@ class UdisksMountStrategy implements MountStrategyInterface
 
             return MountResult::success($actualMountpoint);
         } catch (\RuntimeException $e) {
-            return MountResult::failure('udisksctl mount failed: ' . $e->getMessage());
+            // Handle "AlreadyMounted" — not a real failure
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'AlreadyMounted') || str_contains($msg, 'already mounted')) {
+                // Parse mountpoint from error: "...already mounted at `/media/www-data/LABEL'."
+                if (preg_match("/mounted at [`'](.+?)['`]/", $msg, $matches)) {
+                    return MountResult::success(trim($matches[1]));
+                }
+                // Fallback: try to get mountpoint from lsblk
+                $detected = $this->detectMountpoint($device);
+                if ($detected !== null) {
+                    return MountResult::success($detected);
+                }
+            }
+            return MountResult::failure('udisksctl mount failed: ' . $msg);
+        }
+    }
+
+    /**
+     * Detect current mountpoint for a device via lsblk.
+     */
+    private function detectMountpoint(string $device): ?string
+    {
+        try {
+            $output = $this->commandRunner->run('lsblk', [
+                '-n', '-o', 'MOUNTPOINTS', '/dev/' . $device,
+            ]);
+            $mp = trim($output);
+            return $mp !== '' ? $mp : null;
+        } catch (\RuntimeException) {
+            return null;
         }
     }
 

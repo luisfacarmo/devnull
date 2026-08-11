@@ -78,12 +78,16 @@ class MountController extends OCSController
             // Create .devnull marker
             $this->createMarker($actualMountpoint, $device, $label);
 
-            // Register external storage via PHP API
-            $storageRegistrar = \OCP\Server::get(\OCA\DevNull\Capability\StorageRegistrarInterface::class);
-            $storageId = $storageRegistrar->register($actualMountpoint, $label, $this->userId, [$this->userId]);
-
-            // Persist storage_id mapping for this device (used by eject)
-            $this->saveStorageMapping($device, $storageId);
+            // Register external storage (skip if already registered for this device)
+            $existingStorageId = $this->getStorageMapping($device);
+            if ($existingStorageId > 0) {
+                $storageId = $existingStorageId;
+                $this->logger->info('DevNull: storage already registered, skipping', ['id' => $storageId]);
+            } else {
+                $storageRegistrar = \OCP\Server::get(\OCA\DevNull\Capability\StorageRegistrarInterface::class);
+                $storageId = $storageRegistrar->register($actualMountpoint, $label, $this->userId, [$this->userId]);
+                $this->saveStorageMapping($device, $storageId);
+            }
 
             $this->logger->info('DevNull: disco montado', [
                 'device' => $device,
