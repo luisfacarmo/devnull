@@ -8,7 +8,6 @@ use OCA\DevNull\Bridge\HttpDaemonClient;
 use OCA\DevNull\Bridge\NullDaemonClient;
 use OCA\DevNull\Capability\DaemonClientInterface;
 use OCA\DevNull\Capability\DiskDetectorInterface;
-use OCA\DevNull\Capability\StatusTransportInterface;
 use OCA\DevNull\Capability\StorageRegistrarInterface;
 use OCA\DevNull\Detection\DetectorFactory;
 use OCA\DevNull\Detection\LsblkDetector;
@@ -18,7 +17,6 @@ use OCA\DevNull\Event\IngestCompletedEvent;
 use OCA\DevNull\Listener\LogOnUnmount;
 use OCA\DevNull\Listener\NotifyOnIngestComplete;
 use OCA\DevNull\Listener\TriggerScanOnMount;
-use OCA\DevNull\Status\PollingTransport;
 use OCA\DevNull\Storage\NextcloudStorageRegistrar;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -62,11 +60,6 @@ class Application extends App implements IBootstrap
         // StorageRegistrar: always available (just calls occ)
         $context->registerService(StorageRegistrarInterface::class, function ($c) {
             return $c->get(NextcloudStorageRegistrar::class);
-        });
-
-        // StatusTransport: always available
-        $context->registerService(StatusTransportInterface::class, function ($c) {
-            return $c->get(PollingTransport::class);
         });
 
         // Event listeners
