@@ -97,6 +97,10 @@ class MountController extends OCSController
         }
 
         try {
+            // Find and remove the external storage for this device before unmounting
+            $this->removeExternalStorage($device);
+
+            // Unmount
             $strategy = $this->getMountStrategy();
             $result = $strategy->unmount($device);
 
@@ -104,7 +108,7 @@ class MountController extends OCSController
                 return new DataResponse(['error' => $result->error], 500);
             }
 
-            $this->logger->info('DevNull: disco ejetado', ['device' => $device]);
+            $this->logger->info('DevNull: disco ejetado + storage removido', ['device' => $device]);
             return new DataResponse(['success' => true]);
         } catch (\Exception $e) {
             $this->logger->error('DevNull: unmount falhou', ['error' => $e->getMessage()]);
@@ -141,6 +145,68 @@ class MountController extends OCSController
         } catch (\Exception) {
             return new \OCA\DevNull\Mount\NullMountStrategy();
         }
+    }
+
+    private function removeExternalStorage(string $device): void
+    {
+        try {
+            // Find the mountpoint for this device
+            $diskInfo = $this->findDisk($device);
+            $mountpoint = $diskInfo?->mountpoint;
+
+            if ($mountpoint === null) {
+                return;
+            }
+
+            // List external storages and find the one matching this mountpoint
+            $phpBin = PHP_BINARY ?: '/usr/bin/php';
+            $occPath = $this->findOccPath();
+            if ($occPath === null) {
+                return;
+            }
+
+            $cmd = sprintf('%s %s files_external:list --output=json 2>/dev/null', escapeshellarg($phpBin), escapeshellarg($occPath));
+            $output = shell_exec($cmd);
+
+            if (!$output) {
+                return;
+            }
+
+            $storages = json_decode($output, true);
+            if (!is_array($storages)) {
+                return;
+            }
+
+            foreach ($storages as $storage) {
+                $datadir = $storage['configuration']['datadir'] ?? '';
+                // Match: datadir contains the mountpoint path
+                if (str_contains($datadir, basename($mountpoint))) {
+                    $storageId = $storage['mount_id'] ?? null;
+                    if ($storageId) {
+                        $deleteCmd = sprintf('%s %s files_external:delete --yes %s 2>/dev/null', escapeshellarg($phpBin), escapeshellarg($occPath), escapeshellarg((string) $storageId));
+                        shell_exec($deleteCmd);
+                        $this->logger->info('DevNull: external storage removido', ['id' => $storageId]);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('DevNull: falha ao remover external storage', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function findOccPath(): ?string
+    {
+        $candidates = [
+            '/var/www/nextcloud/occ',
+            '/var/www/html/nextcloud/occ',
+            dirname(__DIR__, 4) . '/occ',
+        ];
+        foreach ($candidates as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+        return null;
     }
 
     private function createMarker(string $mountpoint, string $device, string $label): void
