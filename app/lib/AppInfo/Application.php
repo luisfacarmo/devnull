@@ -18,6 +18,7 @@ use OCA\DevNull\Listener\LogOnUnmount;
 use OCA\DevNull\Listener\NotifyOnIngestComplete;
 use OCA\DevNull\Listener\TriggerScanOnMount;
 use OCA\DevNull\Notification\Notifier;
+use OCA\DevNull\Dashboard\DevNullWidget;
 use OCA\DevNull\Storage\NextcloudStorageRegistrar;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -70,6 +71,9 @@ class Application extends App implements IBootstrap
 
         // Notification handler
         $context->registerNotifierService(Notifier::class);
+
+        // Dashboard widget
+        $context->registerDashboardWidget(DevNullWidget::class);
     }
 
     public function boot(IBootContext $context): void
