@@ -38,6 +38,16 @@ class ScanStep implements IngestStepInterface
         ]);
 
         try {
+            // Resolve IUser object (NC 34+ Scanner requires IUser, not string)
+            $userManager = \OCP\Server::get(\OCP\IUserManager::class);
+            $user = $userManager->get($userId);
+            if ($user === null) {
+                return [
+                    'success' => false,
+                    'message' => 'Usuário não encontrado: ' . $userId,
+                ];
+            }
+
             // Setup user filesystem (required before scanning)
             \OC_Util::setupFS($userId);
 
@@ -45,11 +55,11 @@ class ScanStep implements IngestStepInterface
             $scanPath = '/' . $userId . '/files';
 
             $scanner = new \OC\Files\Utils\Scanner(
-                $userId,
-                \OCP\Server::get(\OCP\Files\Storage\IStorageFactory::class),
+                $user,
                 \OCP\Server::get(\OCP\IDBConnection::class),
                 \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class),
                 $this->logger,
+                \OCP\Server::get(\OC\Files\SetupManager::class),
             );
 
             $scanner->scan($scanPath, $recursive = true, null);

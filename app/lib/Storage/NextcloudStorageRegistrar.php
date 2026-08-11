@@ -132,6 +132,14 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
     private function scanUserFiles(string $userId, string $label = ''): void
     {
         try {
+            // Resolve IUser object (NC 34+ Scanner requires IUser, not string)
+            $userManager = \OCP\Server::get(\OCP\IUserManager::class);
+            $user = $userManager->get($userId);
+            if ($user === null) {
+                $this->logger->warning('DevNull: user not found for scan', ['user' => $userId]);
+                return;
+            }
+
             // Setup user filesystem (required before scanning)
             \OC_Util::setupFS($userId);
 
@@ -141,13 +149,13 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
                 $scanPath .= '/' . $label;
             }
 
-            // Use the Scanner utility (same as occ files:scan internals)
+            // Use the Scanner utility (NC 34 constructor signature)
             $scanner = new \OC\Files\Utils\Scanner(
-                $userId,
-                \OCP\Server::get(\OCP\Files\Storage\IStorageFactory::class),
+                $user,
                 \OCP\Server::get(\OCP\IDBConnection::class),
                 \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class),
                 $this->logger,
+                \OCP\Server::get(\OC\Files\SetupManager::class),
             );
 
             $scanner->scan($scanPath, $recursive = true, null);
