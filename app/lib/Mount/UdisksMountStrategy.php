@@ -25,20 +25,13 @@ class UdisksMountStrategy implements MountStrategyInterface
         $devicePath = '/dev/' . $device;
 
         try {
-            $output = $this->commandRunner->run('udisksctl', [
+            $this->commandRunner->run('udisksctl', [
                 'mount',
                 '-b', $devicePath,
                 '--no-user-interaction',
             ]);
 
-            // Parse actual mountpoint from udisksctl output
-            // Output format: "Mounted /dev/sdb1 at /media/www-data/LABEL"
-            $actualMountpoint = $mountpoint; // fallback
-            if (preg_match('/at (.+?)\.?\s*$/', $output, $matches)) {
-                $actualMountpoint = trim($matches[1], " \t\n\r.");
-            }
-
-            return MountResult::success($actualMountpoint);
+            return MountResult::success($mountpoint);
         } catch (\RuntimeException $e) {
             return MountResult::failure('udisksctl mount failed: ' . $e->getMessage());
         }
