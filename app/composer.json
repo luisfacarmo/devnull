@@ -18,10 +18,12 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0",
+        "phpstan/phpstan": "^1.10",
         "nextcloud/ocp": "^28"
     },
     "scripts": {
         "test": "phpunit --configuration tests/phpunit.xml",
-        "lint": "php -l lib/"
+        "lint": "php -l lib/",
+        "stan": "phpstan analyse --configuration=phpstan.neon.dist"
     }
 }

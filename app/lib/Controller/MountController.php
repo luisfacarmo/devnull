@@ -38,7 +38,19 @@ class MountController extends OCSController
     public function mount(string $device): DataResponse
     {
         if (!$this->validateDevice($device)) {
-            return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Nome de dispositivo inválido',
+                'code' => 'INVALID_DEVICE',
+            ], 400);
+        }
+
+        if ($this->userId === null) {
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Usuário não autenticado',
+                'code' => 'UNAUTHENTICATED',
+            ], 401);
         }
 
         try {
@@ -54,7 +66,11 @@ class MountController extends OCSController
             // Mount
             $result = $strategy->mount($device, $mountpoint);
             if (!$result->success) {
-                return new DataResponse(['error' => $result->error], 500);
+                return new DataResponse([
+                    'success' => false,
+                    'error' => $result->error ?? 'Mount falhou',
+                    'code' => 'MOUNT_FAILED',
+                ], 500);
             }
 
             $actualMountpoint = $result->mountpoint ?? $mountpoint;
@@ -83,7 +99,11 @@ class MountController extends OCSController
             ]);
         } catch (\Exception $e) {
             $this->logger->error('DevNull: mount falhou', ['error' => $e->getMessage()]);
-            return new DataResponse(['error' => $e->getMessage()], 500);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Mount falhou: ' . $e->getMessage(),
+                'code' => 'MOUNT_ERROR',
+            ], 500);
         }
     }
 
@@ -96,7 +116,11 @@ class MountController extends OCSController
     public function unmount(string $device): DataResponse
     {
         if (!$this->validateDevice($device)) {
-            return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Nome de dispositivo inválido',
+                'code' => 'INVALID_DEVICE',
+            ], 400);
         }
 
         try {
@@ -107,14 +131,22 @@ class MountController extends OCSController
             $result = $strategy->unmount($device);
 
             if (!$result->success) {
-                return new DataResponse(['error' => $result->error], 500);
+                return new DataResponse([
+                    'success' => false,
+                    'error' => $result->error ?? 'Eject falhou',
+                    'code' => 'UNMOUNT_FAILED',
+                ], 500);
             }
 
             $this->logger->info('DevNull: disco ejetado', ['device' => $device]);
             return new DataResponse(['success' => true]);
         } catch (\Exception $e) {
             $this->logger->error('DevNull: unmount falhou', ['error' => $e->getMessage()]);
-            return new DataResponse(['error' => $e->getMessage()], 500);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Eject falhou: ' . $e->getMessage(),
+                'code' => 'UNMOUNT_ERROR',
+            ], 500);
         }
     }
 

@@ -1,0 +1,18 @@
+parameters:
+    level: 5
+    paths:
+        - lib
+    excludePaths:
+        - lib/Migration
+    bootstrapFiles:
+        - vendor/autoload.php
+    scanDirectories:
+        - vendor/nextcloud/ocp/OCP
+        - vendor/nextcloud/ocp/OC
+    ignoreErrors:
+        # Nextcloud internal classes used intentionally
+        - '#Class OC_Util not found#'
+        - '#Class OC\\Files\\Utils\\Scanner not found#'
+        - '#Class OCA\\Files_External\\#'
+        - '#Class OCA\\DuplicateFinder\\#'
+        - '#Class OCA\\Recognize\\#'

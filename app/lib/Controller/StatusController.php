@@ -26,6 +26,8 @@ class StatusController extends OCSController
 
     /**
      * Get current status for the requesting user.
+     *
+     * @NoAdminRequired
      */
     public function index(): DataResponse
     {
@@ -69,6 +71,7 @@ class StatusController extends OCSController
         }
 
         return new DataResponse([
+            'success' => true,
             'transport' => 'polling',
             'status' => [
                 'mounts' => $mounts,

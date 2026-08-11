@@ -35,9 +35,20 @@ class IngestController extends OCSController
      */
     public function start(string $device, array $steps = []): DataResponse
     {
-        // Validate device name (same pattern as MountController)
         if (!preg_match('/^[a-z0-9]+$/', $device)) {
-            return new DataResponse(['error' => 'Nome de dispositivo inválido'], 400);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Nome de dispositivo inválido',
+                'code' => 'INVALID_DEVICE',
+            ], 400);
+        }
+
+        if ($this->userId === null) {
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Usuário não autenticado',
+                'code' => 'UNAUTHENTICATED',
+            ], 401);
         }
 
         try {
@@ -54,7 +65,11 @@ class IngestController extends OCSController
             }
 
             if ($mountpoint === null) {
-                return new DataResponse(['error' => 'Disco não está montado'], 404);
+                return new DataResponse([
+                    'success' => false,
+                    'error' => 'Disco não está montado',
+                    'code' => 'DEVICE_NOT_MOUNTED',
+                ], 404);
             }
 
             // Get pipeline
@@ -80,13 +95,18 @@ class IngestController extends OCSController
             ]);
         } catch (\Exception $e) {
             $this->logger->error('DevNull: Pipeline falhou', ['error' => $e->getMessage()]);
-            return new DataResponse(['error' => $e->getMessage()], 500);
+            return new DataResponse([
+                'success' => false,
+                'error' => 'Pipeline falhou: ' . $e->getMessage(),
+                'code' => 'PIPELINE_ERROR',
+            ], 500);
         }
     }
 
     /**
      * Get available pipeline steps.
      *
+     * @NoAdminRequired
      * @return DataResponse
      */
     public function getSteps(): DataResponse
