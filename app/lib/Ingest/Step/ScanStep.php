@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace OCA\DevNull\Ingest\Step;
 
-use OCA\DevNull\Command\SecureCommandRunner;
 use OCA\DevNull\Ingest\IngestStepInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Scan step: runs occ files:scan to index files in Nextcloud.
+ * Scan step: indexes files in Nextcloud using the internal Scanner API.
+ *
+ * Uses \OC\Files\Utils\Scanner directly (same engine as `occ files:scan`)
+ * instead of spawning a subprocess. This works within HTTP context.
  */
 class ScanStep implements IngestStepInterface
 {
-    private const OCC_PATH = '/var/www/nextcloud/occ';
-
     public function __construct(
-        private SecureCommandRunner $commandRunner,
         private LoggerInterface $logger,
     ) {
     }
@@ -39,18 +38,30 @@ class ScanStep implements IngestStepInterface
         ]);
 
         try {
-            $output = $this->commandRunner->run('php', [
-                self::OCC_PATH,
-                'files:scan',
-                '--path', '/' . $userId . '/files',
-            ]);
+            // Setup user filesystem (required before scanning)
+            \OC_Util::setupFS($userId);
+
+            // Scan the user's full files tree (covers the mounted external storage)
+            $scanPath = '/' . $userId . '/files';
+
+            $scanner = new \OC\Files\Utils\Scanner(
+                $userId,
+                \OCP\Server::get(\OCP\Files\Storage\IStorageFactory::class),
+                \OCP\Server::get(\OCP\IDBConnection::class),
+                \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class),
+                $this->logger,
+            );
+
+            $scanner->scan($scanPath, $recursive = true, null);
+
+            $this->logger->info('DevNull: ScanStep concluído', ['user' => $userId]);
 
             return [
                 'success' => true,
                 'message' => 'Scan concluído',
-                'details' => ['output' => substr($output, 0, 500)],
+                'details' => ['path' => $scanPath],
             ];
-        } catch (\RuntimeException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('DevNull: ScanStep falhou', ['error' => $e->getMessage()]);
             return [
                 'success' => false,

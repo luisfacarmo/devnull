@@ -62,9 +62,12 @@ class MountController extends OCSController
             // Create .devnull marker
             $this->createMarker($actualMountpoint, $device, $label);
 
-            // Register external storage via occ
+            // Register external storage via PHP API
             $storageRegistrar = \OCP\Server::get(\OCA\DevNull\Capability\StorageRegistrarInterface::class);
             $storageId = $storageRegistrar->register($actualMountpoint, $label, $this->userId, [$this->userId]);
+
+            // Persist storage_id mapping for this device (used by eject)
+            $this->saveStorageMapping($device, $storageId);
 
             $this->logger->info('DevNull: disco montado', [
                 'device' => $device,
@@ -97,7 +100,7 @@ class MountController extends OCSController
         }
 
         try {
-            // Remove external storage before unmounting
+            // Remove external storage BEFORE unmounting (while we still have info)
             $this->removeExternalStorageForDevice($device);
 
             $strategy = $this->getMountStrategy();
@@ -163,13 +166,38 @@ class MountController extends OCSController
     private function removeExternalStorageForDevice(string $device): void
     {
         try {
+            $storageId = $this->getStorageMapping($device);
+            if ($storageId <= 0) {
+                $this->logger->warning('DevNull: no stored storageId for device, trying fallback', ['device' => $device]);
+                $this->removeExternalStorageByDetection($device);
+                return;
+            }
+
+            // Use StorageRegistrar to unregister directly by ID
+            $storageRegistrar = \OCP\Server::get(\OCA\DevNull\Capability\StorageRegistrarInterface::class);
+            $storageRegistrar->unregister($storageId);
+
+            // Clear the mapping
+            $this->clearStorageMapping($device);
+            $this->logger->info('DevNull: storage removido no eject via storageId', ['id' => $storageId]);
+        } catch (\Exception $e) {
+            $this->logger->warning('DevNull: falha ao remover storage no eject', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Fallback: try to find and remove storage by matching datadir.
+     * Only used when no saved storageId mapping exists.
+     */
+    private function removeExternalStorageByDetection(string $device): void
+    {
+        try {
             $diskInfo = $this->findDisk($device);
             $mountpoint = $diskInfo?->mountpoint;
             if ($mountpoint === null) {
                 return;
             }
 
-            // Use PHP API to find and remove matching storage
             $globalService = \OCP\Server::get(\OCA\Files_External\Service\GlobalStoragesService::class);
             $allStorages = $globalService->getStorages();
 
@@ -178,11 +206,49 @@ class MountController extends OCSController
                 $datadir = $storage->getBackendOptions()['datadir'] ?? '';
                 if (str_contains($datadir, $mountBasename)) {
                     $globalService->removeStorage($storage->getId());
-                    $this->logger->info('DevNull: storage removido no eject', ['id' => $storage->getId()]);
+                    $this->logger->info('DevNull: storage removido no eject (fallback)', ['id' => $storage->getId()]);
                 }
             }
         } catch (\Exception $e) {
-            $this->logger->warning('DevNull: falha ao remover storage no eject', ['error' => $e->getMessage()]);
+            $this->logger->warning('DevNull: fallback storage removal failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Save device → storageId mapping using Nextcloud's IConfig.
+     * Uses app config keys: "mount_storage_{device}" = storageId
+     */
+    private function saveStorageMapping(string $device, int $storageId): void
+    {
+        if ($storageId <= 0) {
+            return;
+        }
+        try {
+            $config = \OCP\Server::get(\OCP\IConfig::class);
+            $config->setAppValue('devnull', 'mount_storage_' . $device, (string) $storageId);
+        } catch (\Exception $e) {
+            $this->logger->warning('DevNull: failed to save storage mapping', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function getStorageMapping(string $device): int
+    {
+        try {
+            $config = \OCP\Server::get(\OCP\IConfig::class);
+            $value = $config->getAppValue('devnull', 'mount_storage_' . $device, '0');
+            return (int) $value;
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    private function clearStorageMapping(string $device): void
+    {
+        try {
+            $config = \OCP\Server::get(\OCP\IConfig::class);
+            $config->deleteAppValue('devnull', 'mount_storage_' . $device);
+        } catch (\Exception $e) {
+            // Non-critical
         }
     }
 }
