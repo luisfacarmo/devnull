@@ -46,21 +46,24 @@ class UdisksMountStrategy implements MountStrategyInterface
                 'unmount',
                 '-b', $devicePath,
                 '--no-user-interaction',
+                '--force',
             ]);
 
             return UnmountResult::success();
         } catch (\RuntimeException $e) {
-            return UnmountResult::failure('udisksctl unmount failed: ' . $e->getMessage());
+            return UnmountResult::failure('udisksctl unmount falhou: ' . $e->getMessage());
         }
     }
 
     public function isAvailable(): bool
     {
         try {
-            $this->commandRunner->run('udisksctl', ['--version']);
+            // Just check if the binary exists and is executable
+            $this->commandRunner->run('udisksctl', ['help']);
             return true;
         } catch (\RuntimeException) {
-            return false;
+            // Try alternative: just check binary exists
+            return is_executable('/usr/bin/udisksctl');
         }
     }
 

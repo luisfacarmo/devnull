@@ -71,3 +71,12 @@
     justify-content: space-between;
     margin-bottom: 8px;
 }
+
+.devnull-warning {
+    background: var(--color-warning, #f0ad4e);
+    color: var(--color-main-text, #000);
+    padding: 12px 16px;
+    border-radius: var(--border-radius-large);
+    margin-bottom: 16px;
+    font-weight: 500;
+}
