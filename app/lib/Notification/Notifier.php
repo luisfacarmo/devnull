@@ -9,6 +9,7 @@ use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
+use OCP\Notification\UnknownNotificationException;
 
 /**
  * Nextcloud Notification handler for DevNull events.
@@ -36,7 +37,7 @@ class Notifier implements INotifier
     public function prepare(INotification $notification, string $languageCode): INotification
     {
         if ($notification->getApp() !== Application::APP_ID) {
-            throw new \InvalidArgumentException('Unknown app');
+            throw new UnknownNotificationException('Unknown app');
         }
 
         switch ($notification->getSubject()) {
@@ -96,7 +97,7 @@ class Notifier implements INotifier
                 break;
 
             default:
-                throw new \InvalidArgumentException('Unknown subject: ' . $notification->getSubject());
+                throw new UnknownNotificationException('Unknown subject: ' . $notification->getSubject());
         }
 
         return $notification;
