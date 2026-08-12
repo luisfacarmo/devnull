@@ -31,6 +31,13 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
         string $ownerId,
         array $visibleTo = []
     ): int {
+        // Ensure all strings are valid UTF-8 regardless of filesystem locale.
+        // Filesystems may return paths in the OS locale (e.g. latin1 on some
+        // systems). We normalise to UTF-8 here so the Nextcloud DB and Scanner
+        // never see mojibake or replacement characters ("B?RBARA" style).
+        $mountpoint = $this->toUtf8($mountpoint);
+        $label      = $this->toUtf8($label);
+
         $this->logger->info('DevNull: registering external storage via PHP API', [
             'mountpoint' => $mountpoint,
             'label' => $label,
@@ -51,13 +58,30 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
                 return 0;
             }
 
+            // datadir must end with '/' and be valid UTF-8
+            $datadir = rtrim($mountpoint, '/') . '/';
+
+            // Check if a storage for this exact datadir already exists.
+            // This prevents creating duplicate storages on repeated mount/unmount
+            // cycles — the filecache from the previous mount is reused as-is.
+            $existingId = $this->findStorageByDatadir($datadir, $globalService);
+            if ($existingId > 0) {
+                $this->logger->info('DevNull: reusing existing storage for datadir', [
+                    'id'      => $existingId,
+                    'datadir' => $datadir,
+                ]);
+                // Still trigger a selective scan in case new files were added
+                $this->scanUserFiles($ownerId, $label);
+                return $existingId;
+            }
+
             // Create StorageConfig
             $mount = new \OCA\Files_External\Lib\StorageConfig();
             $mount->setMountPoint($label);
             $mount->setBackend($storageBackend);
             $mount->setAuthMechanism($authBackend);
             $mount->setBackendOptions([
-                'datadir' => rtrim($mountpoint, '/') . '/',
+                'datadir' => $datadir,
             ]);
 
             // Set applicable users (or all if empty)
@@ -86,20 +110,17 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
 
     public function unregister(int $storageId): void
     {
-        if ($storageId <= 0) {
-            return;
-        }
-
-        try {
-            $globalService = \OCP\Server::get(\OCA\Files_External\Service\GlobalStoragesService::class);
-            $globalService->removeStorage($storageId);
-            $this->logger->info('DevNull: storage unregistered', ['id' => $storageId]);
-        } catch (\Exception $e) {
-            $this->logger->error('DevNull: storage unregister failed', [
-                'id' => $storageId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        // Intentionally a no-op: we keep the external storage registration in
+        // Nextcloud even after the disk is physically unmounted. This preserves
+        // the filecache so that on the next mount the content is immediately
+        // visible without a full re-scan. The storage will show as "unavailable"
+        // in Files until the disk is plugged in again, which is acceptable UX.
+        //
+        // If the user explicitly wants to remove the storage permanently they
+        // can do so via Settings → External Storage.
+        $this->logger->info('DevNull: unregister called (no-op, storage kept for filecache reuse)', [
+            'id' => $storageId,
+        ]);
     }
 
     public function setVisibility(int $storageId, array $visibleTo): void
@@ -203,5 +224,70 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
         } catch (\Exception) {
             // Non-critical
         }
+    }
+
+    /**
+     * Find an existing external storage registration by its datadir path.
+     *
+     * Returns the storage ID if found, 0 otherwise.
+     * Comparison is done after UTF-8 normalisation of both sides.
+     */
+    private function findStorageByDatadir(string $datadir, object $globalService): int
+    {
+        try {
+            $allStorages = $globalService->getStorages();
+            $normalised = $this->toUtf8(rtrim($datadir, '/') . '/');
+            foreach ($allStorages as $storage) {
+                $existing = $this->toUtf8(
+                    rtrim($storage->getBackendOptions()['datadir'] ?? '', '/') . '/'
+                );
+                if ($existing === $normalised) {
+                    return $storage->getId();
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning('DevNull: findStorageByDatadir failed', ['error' => $e->getMessage()]);
+        }
+        return 0;
+    }
+
+    /**
+     * Normalise a string to valid UTF-8.
+     *
+     * Handles three common cases:
+     *  1. String is already valid UTF-8 → returned as-is.
+     *  2. String is in the system locale (e.g. ISO-8859-1) → converted via iconv.
+     *  3. iconv unavailable or fails → mb_convert_encoding fallback with
+     *     //IGNORE so invalid bytes are dropped rather than becoming '?'.
+     */
+    private function toUtf8(string $s): string
+    {
+        if (mb_check_encoding($s, 'UTF-8')) {
+            return $s;
+        }
+
+        // Try iconv with the system locale first (most accurate)
+        if (function_exists('iconv')) {
+            $locale = setlocale(LC_CTYPE, '0') ?: 'UTF-8';
+            // Extract charset from locale string like "pt_BR.UTF-8" or "en_US.iso88591"
+            $charset = 'UTF-8';
+            if (preg_match('/\.(.+)$/', $locale, $m)) {
+                $charset = $m[1];
+            }
+            if (strcasecmp($charset, 'UTF-8') !== 0 && strcasecmp($charset, 'UTF8') !== 0) {
+                $converted = @iconv($charset, 'UTF-8//IGNORE', $s);
+                if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
+                    return $converted;
+                }
+            }
+            // Generic fallback: try ISO-8859-1 (covers most Western labels)
+            $converted = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $s);
+            if ($converted !== false && mb_check_encoding($converted, 'UTF-8')) {
+                return $converted;
+            }
+        }
+
+        // Last resort: mb drops invalid bytes rather than replacing with '?'
+        return mb_convert_encoding($s, 'UTF-8', 'auto');
     }
 }

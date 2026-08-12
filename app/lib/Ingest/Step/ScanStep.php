@@ -51,8 +51,13 @@ class ScanStep implements IngestStepInterface
             // Setup user filesystem (required before scanning)
             \OC_Util::setupFS($userId);
 
-            // Scan the user's full files tree (covers the mounted external storage)
-            $scanPath = '/' . $userId . '/files';
+            // Scan ONLY the specific external storage that was just mounted.
+            // Using the mount label (basename of mountpoint) keeps this selective
+            // and avoids failing because of other broken storages on the account.
+            $label = basename(rtrim($mountpoint, '/'));
+            $scanPath = '/' . $userId . '/files/' . $label;
+
+            $this->logger->info('DevNull: ScanStep path', ['path' => $scanPath]);
 
             $scanner = new \OC\Files\Utils\Scanner(
                 $user,
@@ -64,7 +69,7 @@ class ScanStep implements IngestStepInterface
 
             $scanner->scan($scanPath, $recursive = true, null);
 
-            $this->logger->info('DevNull: ScanStep concluído', ['user' => $userId]);
+            $this->logger->info('DevNull: ScanStep concluído', ['user' => $userId, 'path' => $scanPath]);
 
             // Auto-trigger Recognize classification if enabled
             $this->triggerAutoClassify($userId);

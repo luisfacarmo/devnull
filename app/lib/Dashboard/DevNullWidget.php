@@ -15,6 +15,7 @@ use OCP\Dashboard\Model\WidgetItems;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 /**
  * Dashboard widget for DevNull.
@@ -32,6 +33,7 @@ class DevNullWidget implements IAPIWidgetV2, IButtonWidget, IIconWidget, IReload
         private IL10N $l,
         private IURLGenerator $urlGenerator,
         private IDBConnection $db,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -129,16 +131,71 @@ class DevNullWidget implements IAPIWidgetV2, IButtonWidget, IIconWidget, IReload
 
     private function getActiveMounts(): array
     {
+        // oc_devnull_mounts is only populated by the daemon path; when the
+        // PHP-side MountController is used it stores data in oc_external_mounts
+        // (via files_external) and oc_appconfig. We read from oc_external_mounts
+        // joined with oc_external_config so the widget always reflects the real
+        // registered storages.
+        //
+        // Schema:
+        //   oc_external_mounts  → mount_id, mount_point
+        //   oc_external_config  → mount_id, key, value  (key='datadir' → path)
+        //   oc_external_applicable → mount_id, type, value (type=3 → user)
         try {
             $qb = $this->db->getQueryBuilder();
-            $qb->select('*')
-                ->from('devnull_mounts')
-                ->setMaxResults(5);
+            $qb->select('m.mount_id', 'm.mount_point', 'c.value AS datadir')
+                ->from('external_mounts', 'm')
+                ->leftJoin('m', 'external_config', 'c',
+                    $qb->expr()->andX(
+                        $qb->expr()->eq('c.mount_id', 'm.mount_id'),
+                        $qb->expr()->eq('c.key', $qb->createNamedParameter('datadir'))
+                    )
+                )
+                ->setMaxResults(10);
             $result = $qb->executeQuery();
             $rows = $result->fetchAll();
             $result->closeCursor();
-            return $rows;
-        } catch (\Exception) {
+
+            $mounts = [];
+            foreach ($rows as $row) {
+                $datadir = rtrim($row['datadir'] ?? '', '/');
+
+                if ($datadir === '') {
+                    continue;
+                }
+
+                // Only show storages managed by devnull (under /media/)
+                if (!str_contains($datadir, '/media/')) {
+                    continue;
+                }
+
+                // Only show if path actually exists on disk right now
+                if (!is_dir($datadir)) {
+                    continue;
+                }
+
+                $label = $row['mount_point'] ?? basename($datadir);
+                // Strip leading slash from mount_point (e.g. "/BÁRBARA" → "BÁRBARA")
+                $label = ltrim($label, '/');
+
+                $mountedAt = '';
+                // Try to read our .devnull marker for mounted_at metadata
+                $marker = $datadir . '/.devnull';
+                if (is_readable($marker)) {
+                    $meta = json_decode((string) @file_get_contents($marker), true);
+                    $mountedAt = $meta['mounted_at'] ?? '';
+                }
+
+                $mounts[] = [
+                    'label'      => $label,
+                    'mountpoint' => $datadir,
+                    'mounted_at' => $mountedAt,
+                ];
+            }
+
+            return $mounts;
+        } catch (\Exception $e) {
+            $this->logger->debug('DevNull widget: getActiveMounts failed', ['error' => $e->getMessage()]);
             return [];
         }
     }
