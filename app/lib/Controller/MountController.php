@@ -75,6 +75,20 @@ class MountController extends OCSController
 
             $actualMountpoint = $result->mountpoint ?? $mountpoint;
 
+            // Normalise to valid UTF-8 — the OS/udisks may return the path in
+            // the system locale encoding (e.g. ISO-8859-1), which corrupts
+            // non-ASCII characters like "BÁRBARA" → "B?RBARA" in the DB.
+            $actualMountpoint = mb_check_encoding($actualMountpoint, 'UTF-8')
+                ? $actualMountpoint
+                : (function_exists('iconv')
+                    ? (@iconv('ISO-8859-1', 'UTF-8//IGNORE', $actualMountpoint) ?: mb_convert_encoding($actualMountpoint, 'UTF-8', 'auto'))
+                    : mb_convert_encoding($actualMountpoint, 'UTF-8', 'auto'));
+
+            // Also normalise the label used for safeName derivation
+            $label = mb_check_encoding($label, 'UTF-8')
+                ? $label
+                : mb_convert_encoding($label, 'UTF-8', 'auto');
+
             // Create .devnull marker
             $this->createMarker($actualMountpoint, $device, $label);
 
