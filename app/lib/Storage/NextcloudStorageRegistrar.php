@@ -70,8 +70,8 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
                     'id'      => $existingId,
                     'datadir' => $datadir,
                 ]);
-                // Still trigger a selective scan in case new files were added
-                $this->scanUserFiles($ownerId, $label);
+                // Schedule a selective scan in case new files were added since last mount
+                $this->scheduleScan($ownerId, $mountpoint, $label);
                 return $existingId;
             }
 
@@ -95,8 +95,11 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
 
             $this->logger->info('DevNull: storage registered', ['id' => $storageId]);
 
-            // Trigger file scan for the owner so content appears
-            $this->scanUserFiles($ownerId, $label);
+            // Schedule a background scan instead of running synchronously.
+            // The cron will pick this up within seconds (web cron) or the next
+            // scheduled run. This avoids the timing issue where the VFS hasn't
+            // mounted the new storage yet within the same HTTP request.
+            $this->scheduleScan($ownerId, $mountpoint, $label);
 
             return $storageId;
         } catch (\Exception $e) {
@@ -110,17 +113,20 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
 
     public function unregister(int $storageId): void
     {
-        // Intentionally a no-op: we keep the external storage registration in
-        // Nextcloud even after the disk is physically unmounted. This preserves
-        // the filecache so that on the next mount the content is immediately
-        // visible without a full re-scan. The storage will show as "unavailable"
-        // in Files until the disk is plugged in again, which is acceptable UX.
-        //
-        // If the user explicitly wants to remove the storage permanently they
-        // can do so via Settings → External Storage.
-        $this->logger->info('DevNull: unregister called (no-op, storage kept for filecache reuse)', [
-            'id' => $storageId,
-        ]);
+        if ($storageId <= 0) {
+            return;
+        }
+
+        try {
+            $globalService = \OCP\Server::get(\OCA\Files_External\Service\GlobalStoragesService::class);
+            $globalService->removeStorage($storageId);
+            $this->logger->info('DevNull: storage unregistered', ['id' => $storageId]);
+        } catch (\Exception $e) {
+            $this->logger->error('DevNull: storage unregister failed', [
+                'id'    => $storageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function setVisibility(int $storageId, array $visibleTo): void
@@ -143,86 +149,29 @@ class NextcloudStorageRegistrar implements StorageRegistrarInterface
     }
 
     /**
-     * Trigger a real filesystem scan on the newly mounted storage.
+     * Schedule a background scan job for the newly mounted storage.
      *
-     * Uses \OC\Files\Utils\Scanner (same engine as `occ files:scan`)
-     * but invoked directly via PHP — no subprocess needed.
-     *
-     * Scans only the specific mount label path to avoid full-user scan overhead.
+     * Using QueuedJob ensures the scan runs after the current HTTP request
+     * completes, by which time the Nextcloud VFS has fully registered the
+     * new external storage and the Scanner can find it.
      */
-    private function scanUserFiles(string $userId, string $label = ''): void
+    private function scheduleScan(string $userId, string $mountpoint, string $label): void
     {
         try {
-            // Resolve IUser object (NC 34+ Scanner requires IUser, not string)
-            $userManager = \OCP\Server::get(\OCP\IUserManager::class);
-            $user = $userManager->get($userId);
-            if ($user === null) {
-                $this->logger->warning('DevNull: user not found for scan', ['user' => $userId]);
-                return;
-            }
-
-            // Setup user filesystem (required before scanning)
-            \OC_Util::setupFS($userId);
-
-            // Build scan path: /{userId}/files or /{userId}/files/{label}
-            $scanPath = '/' . $userId . '/files';
-            if ($label !== '') {
-                $scanPath .= '/' . $label;
-            }
-
-            // Use the Scanner utility (NC 34 constructor signature)
-            $scanner = new \OC\Files\Utils\Scanner(
-                $user,
-                \OCP\Server::get(\OCP\IDBConnection::class),
-                \OCP\Server::get(\OCP\EventDispatcher\IEventDispatcher::class),
-                $this->logger,
-                \OCP\Server::get(\OC\Files\SetupManager::class),
-            );
-
-            $scanner->scan($scanPath, $recursive = true, null);
-
-            $this->logger->info('DevNull: file scan completed', [
-                'user' => $userId,
-                'path' => $scanPath,
+            $jobList = \OCP\Server::get(\OCP\BackgroundJob\IJobList::class);
+            $jobList->add(\OCA\DevNull\BackgroundJob\ScanMountedStorage::class, [
+                'userId'     => $userId,
+                'mountpoint' => $mountpoint,
+                'label'      => $label,
             ]);
-
-            // Auto-trigger Recognize classification if enabled
-            $this->triggerAutoClassify($userId);
+            $this->logger->info('DevNull: scan job scheduled', [
+                'user'  => $userId,
+                'label' => $label,
+            ]);
         } catch (\Exception $e) {
-            $this->logger->warning('DevNull: file scan failed (content may need manual scan)', [
-                'user' => $userId,
+            $this->logger->warning('DevNull: failed to schedule scan job', [
                 'error' => $e->getMessage(),
             ]);
-        }
-    }
-
-    /**
-     * Schedule Recognize classification if auto_classify_on_scan is enabled.
-     */
-    private function triggerAutoClassify(string $userId): void
-    {
-        try {
-            $config = \OCP\Server::get(\OCP\IConfig::class);
-            if ($config->getAppValue('devnull', 'auto_classify_on_scan', 'true') !== 'true') {
-                return;
-            }
-
-            $appManager = \OCP\Server::get(\OCP\App\IAppManager::class);
-            if (!$appManager->isEnabledForUser('recognize')) {
-                return;
-            }
-
-            $jobList = \OCP\Server::get(\OCP\BackgroundJob\IJobList::class);
-            $jobClass = 'OCA\\Recognize\\BackgroundJobs\\ClassifyJob';
-            if (!class_exists($jobClass)) {
-                $jobClass = 'OCA\\Recognize\\BackgroundJobs\\SchedulerJob';
-            }
-            if (class_exists($jobClass)) {
-                $jobList->add($jobClass, ['user' => $userId]);
-                $this->logger->info('DevNull: auto-classify scheduled post-mount scan', ['user' => $userId]);
-            }
-        } catch (\Exception) {
-            // Non-critical
         }
     }
 
