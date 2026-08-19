@@ -43,7 +43,7 @@ class UdevMonitor:
 
         observer = pyudev.MonitorObserver(
             self._monitor,
-            callback=lambda action, device: self._handle(action, device, on_add, on_remove),
+            callback=lambda device: self._handle(device.action, device, on_add, on_remove),
         )
         observer.start()
         logger.info("Udev monitor started")
