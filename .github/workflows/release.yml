@@ -30,13 +30,13 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           mkdir -p dist
-          tar -czf "dist/devnull-${VERSION}.tar.gz" \
-            --transform "s,^app/,devnull/," \
-            --exclude="app/node_modules" \
-            --exclude="app/tests" \
-            --exclude="app/src" \
-            --exclude="app/.gitignore" \
-            app/
+          # Copy app to a clean directory named 'devnull'
+          rsync -a --exclude='node_modules' --exclude='tests' --exclude='src' \
+            --exclude='.gitignore' --exclude='package-lock.json' \
+            --exclude='webpack.config.js' --exclude='phpstan.neon.dist' \
+            app/ devnull/
+          tar -czf "dist/devnull-${VERSION}.tar.gz" devnull/
+          rm -rf devnull/
 
       - name: Sign package
         run: |
