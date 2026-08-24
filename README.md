@@ -12,8 +12,8 @@
 >
 > — Named after `/dev/null`, the Unix black hole where data goes to die. This app does the opposite.
 
-> [!WARNING]
-> DevNull is feature-complete (v0.5.0) but not yet published on the Nextcloud App Store (certificate pending: [PR #1152](https://github.com/nextcloud/app-certificate-requests/pull/1152)).
+> [!NOTE]
+> DevNull is feature-complete (v0.5.0). Certificate signed — App Store publication in progress.
 
 ## What is this?
 
@@ -40,7 +40,7 @@ Built for the person with 10+ external drives in a drawer, full of photos and do
 | Admin settings | 🟢 Working | Automation rules in NC admin panel |
 | Daemon (hotplug) | 🟢 Working | Python + pyudev, SSE, webhook bridge |
 | DB schema | 🟢 Working | 3 tables (disks, operations, mounts) |
-| App Store | 📋 Pending | Certificate PR open |
+| App Store | 🟡 Pending | Certificate signed, awaiting publication |
 
 ## Features
 
@@ -67,7 +67,7 @@ Built for the person with 10+ external drives in a drawer, full of photos and do
 - [x] `.devnull` marker file on mounted disks
 - [x] PHPStan level 5 compliance
 - [x] Structured error responses with error codes
-- [ ] Nextcloud App Store publication (awaiting certificate)
+- [ ] Nextcloud App Store publication (certificate signed, release workflow ready)
 
 ## Architecture
 
