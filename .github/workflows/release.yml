@@ -1,9 +1,11 @@
 name: Release to Nextcloud App Store
-
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -14,32 +16,37 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Build frontend
         working-directory: app
         run: |
-          npm ci
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Package app
+        id: package
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           mkdir -p dist
-          tar -czf dist/devnull-${GITHUB_REF_NAME#v}.tar.gz \
+          tar -czf "dist/devnull-${VERSION}.tar.gz" \
             --transform "s,^app/,devnull/," \
             --exclude="app/node_modules" \
             --exclude="app/tests" \
+            --exclude="app/src" \
+            --exclude="app/.gitignore" \
             app/
 
       - name: Sign package
         run: |
           echo "${{ secrets.APP_PRIVATE_KEY }}" > devnull.key
           openssl dgst -sha512 -sign devnull.key \
-            dist/devnull-${GITHUB_REF_NAME#v}.tar.gz | openssl base64 > dist/signature
+            "dist/devnull-${{ steps.package.outputs.version }}.tar.gz" | openssl base64 > dist/signature
           rm devnull.key
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*
         env:
@@ -50,5 +57,5 @@ jobs:
         with:
           app_name: devnull
           appstore_token: ${{ secrets.APPSTORE_TOKEN }}
-          download_url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/devnull-${GITHUB_REF_NAME#v}.tar.gz
+          download_url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/devnull-${{ steps.package.outputs.version }}.tar.gz
           app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
