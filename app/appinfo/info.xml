@@ -29,7 +29,7 @@ No terminal required. Plug in a disk, click mount, let your server do the rest.
     <repository>https://github.com/luiscarmo/devnull</repository>
 
     <dependencies>
-        <nextcloud min-version="28" max-version="34"/>
+        <nextcloud min-version="28" max-version="35"/>
         <php min-version="8.2"/>
     </dependencies>
 
