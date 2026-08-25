@@ -1,13 +1,10 @@
-import Vue from 'vue'
+import { createApp } from 'vue'
 import App from './App.vue'
 
-Vue.mixin({ methods: { t, n } })
-
 const appElement = document.getElementById('devnull-app')
-
 if (appElement) {
-	new Vue({
-		el: '#devnull-app',
-		render: h => h(App),
-	})
+	const app = createApp(App)
+	app.config.globalProperties.t = t
+	app.config.globalProperties.n = n
+	app.mount(appElement)
 }

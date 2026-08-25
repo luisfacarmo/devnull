@@ -1,0 +1,1 @@
+import{m as a,l as t,f as o,a as e}from"./devnull-main.js";import{f as m}from"./devnull-formatLong.js";const f={code:"en-GB",formatDistance:e,formatLong:m,formatRelative:o,localize:t,match:a,options:{weekStartsOn:1,firstWeekContainsDate:4}};export{f as enGB};

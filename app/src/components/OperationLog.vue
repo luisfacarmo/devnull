@@ -126,7 +126,7 @@ export default {
 		// Auto-refresh every 30s
 		this.refreshInterval = setInterval(() => this.fetchLogs(), 30000)
 	},
-	beforeDestroy() {
+	beforeUnmount() {
 		if (this.refreshInterval) {
 			clearInterval(this.refreshInterval)
 		}
