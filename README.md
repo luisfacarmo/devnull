@@ -2,8 +2,8 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.2+-purple.svg)](https://php.net/)
-[![Nextcloud](https://img.shields.io/badge/Nextcloud-28--34-0082c9.svg)](https://nextcloud.com/)
-[![Vue.js](https://img.shields.io/badge/Vue.js-2.7-4FC08D.svg)](https://vuejs.org/)
+[![Nextcloud](https://img.shields.io/badge/Nextcloud-28--35-0082c9.svg)](https://nextcloud.com/)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D.svg)](https://vuejs.org/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg)](https://python.org/)
 
 > Nextcloud app for external disk auto-ingest: detect, mount, scan, deduplicate, classify.
@@ -13,7 +13,7 @@
 > — Named after `/dev/null`, the Unix black hole where data goes to die. This app does the opposite.
 
 > [!NOTE]
-> DevNull is feature-complete (v0.5.0). Certificate signed — App Store publication in progress.
+> DevNull v0.5.0 is published on the [Nextcloud App Store](https://apps.nextcloud.com/apps/devnull).
 
 ## What is this?
 
@@ -40,7 +40,7 @@ Built for the person with 10+ external drives in a drawer, full of photos and do
 | Admin settings | 🟢 Working | Automation rules in NC admin panel |
 | Daemon (hotplug) | 🟢 Working | Python + pyudev, SSE, webhook bridge |
 | DB schema | 🟢 Working | 3 tables (disks, operations, mounts) |
-| App Store | 🟡 Pending | Certificate signed, awaiting publication |
+| App Store | 🟢 Published | [apps.nextcloud.com/apps/devnull](https://apps.nextcloud.com/apps/devnull) |
 
 ## Features
 
@@ -67,7 +67,7 @@ Built for the person with 10+ external drives in a drawer, full of photos and do
 - [x] `.devnull` marker file on mounted disks
 - [x] PHPStan level 5 compliance
 - [x] Structured error responses with error codes
-- [ ] Nextcloud App Store publication (certificate signed, release workflow ready)
+- [x] Nextcloud App Store publication
 
 ## Architecture
 
@@ -113,13 +113,13 @@ DevNull/
 
 ## Tech Stack
 
-- **Backend:** PHP 8.2+ / Nextcloud App Framework 28+
-- **Frontend:** Vue.js 2.7 / @nextcloud/vue / Webpack 5
+- **Backend:** PHP 8.2+ / Nextcloud App Framework 28–35
+- **Frontend:** Vue.js 3.5 / @nextcloud/vue 9 / Vite 6
 - **Daemon:** Python 3.11+ / FastAPI / pyudev / httpx
 - **Mount:** udisks2 (userspace, polkit) or sudo mount (fallback)
 - **Detection:** lsblk --json (PHP) / pyudev real-time (daemon)
 - **Storage:** files_external GlobalStoragesService (PHP API)
-- **Scan:** \OC\Files\Utils\Scanner (NC 34, IUser + SetupManager)
+- **Scan:** \OC\Files\Utils\Scanner (NC 34+, IUser + SetupManager)
 - **Jobs:** IJobList for dedup/classify/Recognize scheduling
 - **Notifications:** OCP\Notification\IManager
 - **Dashboard:** IAPIWidgetV2 + IReloadableWidget
